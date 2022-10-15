@@ -1,5 +1,5 @@
 # Pure
-Pure is a lightweight JavaScript  runtime, probably just an attempt at Edge Runtime.
+Pure is a lightweight JavaScript  runtime.（It is mainly used for learning 📖 ✍️）
 
 ## Getting Started
 > Only M1 MacBook is supported for now 😢

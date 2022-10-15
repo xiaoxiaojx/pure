@@ -23,6 +23,44 @@
 
 namespace pure
 {
+
+#define PERFORMANCE_NOW() uv_hrtime()
+
+// __builtin_expect https://www.jianshu.com/p/2684613a300f
+// __builtin_expect() 是 GCC (version >= 2.96）提供给程序员使用的，目的是将“分支转移”的信息提供给编译器，这样编译器可以对代码进行优化，以减少指令跳转带来的性能下降。
+// __builtin_expect((x),1)表示 x 的值为真的可能性更大；
+// __builtin_expect((x),0)表示 x 的值为假的可能性更大。
+// 也就是说，使用likely()，执行 if 后面的语句的机会更大，使用 unlikely()，执行 else 后面的语句的机会更大。通过这种方式，编译器在编译过程中，会将可能性更大的代码紧跟着起面的代码，从而减少指令跳转带来的性能上的下降。
+#ifdef __GNUC__
+#define LIKELY(expr) __builtin_expect(!!(expr), 1)
+#define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
+#define PRETTY_FUNCTION_NAME __PRETTY_FUNCTION__
+#else
+#define LIKELY(expr) expr
+#define UNLIKELY(expr) expr
+#define PRETTY_FUNCTION_NAME ""
+#endif
+
+#ifndef NODE_CONTEXT_EMBEDDER_DATA_INDEX
+#define NODE_CONTEXT_EMBEDDER_DATA_INDEX 32
+#endif
+
+#ifndef NODE_CONTEXT_SANDBOX_OBJECT_INDEX
+#define NODE_CONTEXT_SANDBOX_OBJECT_INDEX 33
+#endif
+
+#ifndef NODE_CONTEXT_ALLOW_WASM_CODE_GENERATION_INDEX
+#define NODE_CONTEXT_ALLOW_WASM_CODE_GENERATION_INDEX 34
+#endif
+
+#ifndef NODE_CONTEXT_TAG
+#define NODE_CONTEXT_TAG 35
+#endif
+
+#ifndef NODE_BINDING_LIST
+#define NODE_BINDING_LIST_INDEX 36
+#endif
+
     // PURE_EXTERN https://www.jianshu.com/p/1e6315145fcf
     // GNU C 的一大特色就是attribute 机制。
     // 试想这样的情景，程序调用某函数A，A函数存在于两个动态链接库liba.so,libb.so中，并且程序执行需要链接这两个库，此时程序调用的A函数到底是来自于a还是b呢？
@@ -118,30 +156,89 @@ namespace pure
             v8::PageAllocator *page_allocator = nullptr);
     };
 
-    class PureArrayBufferAllocator;
-    class IsolateData;
-
-    // An ArrayBuffer::Allocator class with some Node.js-specific tweaks. If you do
-    // not have to use another allocator, using this class is recommended:
-    // - It supports Buffer.allocUnsafe() and Buffer.allocUnsafeSlow() with
-    //   uninitialized memory.
-    // - It supports transferring, rather than copying, ArrayBuffers when using
-    //   MessagePorts.
-    class PURE_EXTERN ArrayBufferAllocator : public v8::ArrayBuffer::Allocator
+    enum IsolateSettingsFlags
     {
-    public:
-        // If `always_debug` is true, create an ArrayBuffer::Allocator instance
-        // that performs additional integrity checks (e.g. make sure that only memory
-        // that was allocated by the it is also freed by it).
-        // This can also be set using the --debug-arraybuffer-allocations flag.
-        static std::unique_ptr<ArrayBufferAllocator> Create(
-            bool always_debug = false);
-
-    private:
-        virtual PureArrayBufferAllocator *GetImpl() = 0;
-
-        friend class IsolateData;
+        MESSAGE_LISTENER_WITH_ERROR_LEVEL = 1 << 0,
+        DETAILED_SOURCE_POSITIONS_FOR_PROFILING = 1 << 1,
+        SHOULD_NOT_SET_PROMISE_REJECTION_CALLBACK = 1 << 2,
+        SHOULD_NOT_SET_PREPARE_STACK_TRACE_CALLBACK = 1 << 3
     };
+
+    struct IsolateSettings
+    {
+        uint64_t flags = MESSAGE_LISTENER_WITH_ERROR_LEVEL |
+                         DETAILED_SOURCE_POSITIONS_FOR_PROFILING;
+        v8::MicrotasksPolicy policy = v8::MicrotasksPolicy::kExplicit;
+
+        // Error handling callbacks
+        v8::Isolate::AbortOnUncaughtExceptionCallback
+            should_abort_on_uncaught_exception_callback = nullptr;
+        v8::FatalErrorCallback fatal_error_callback = nullptr;
+        v8::PrepareStackTraceCallback prepare_stack_trace_callback = nullptr;
+
+        // Miscellaneous callbacks
+        v8::PromiseRejectCallback promise_reject_callback = nullptr;
+        v8::AllowWasmCodeGenerationCallback
+            allow_wasm_code_generation_callback = nullptr;
+    };
+
+    PURE_EXTERN void PromiseRejectCallback(v8::PromiseRejectMessage message);
+
+    enum ContextEmbedderIndex
+    {
+        kEnvironment = NODE_CONTEXT_EMBEDDER_DATA_INDEX,
+        kSandboxObject = NODE_CONTEXT_SANDBOX_OBJECT_INDEX,
+        kAllowWasmCodeGeneration = NODE_CONTEXT_ALLOW_WASM_CODE_GENERATION_INDEX,
+        kContextTag = NODE_CONTEXT_TAG,
+        kBindingListIndex = NODE_BINDING_LIST_INDEX
+    };
+
+    namespace EnvironmentFlags
+    {
+        enum Flags : uint64_t
+        {
+            kNoFlags = 0,
+            // Use the default behaviour for Node.js instances.
+            kDefaultFlags = 1 << 0,
+            // Controls whether this Environment is allowed to affect per-process state
+            // (e.g. cwd, process title, uid, etc.).
+            // This is set when using kDefaultFlags.
+            kOwnsProcessState = 1 << 1,
+            // Set if this Environment instance is associated with the global inspector
+            // handling code (i.e. listening on SIGUSR1).
+            // This is set when using kDefaultFlags.
+            kOwnsInspector = 1 << 2,
+            // Set if Node.js should not run its own esm loader. This is needed by some
+            // embedders, because it's possible for the Node.js esm loader to conflict
+            // with another one in an embedder environment, e.g. Blink's in Chromium.
+            kNoRegisterESMLoader = 1 << 3,
+            // Set this flag to make Node.js track "raw" file descriptors, i.e. managed
+            // by fs.open() and fs.close(), and close them during FreeEnvironment().
+            kTrackUnmanagedFds = 1 << 4,
+            // Set this flag to force hiding console windows when spawning child
+            // processes. This is usually used when embedding Node.js in GUI programs on
+            // Windows.
+            kHideConsoleWindows = 1 << 5,
+            // Set this flag to disable loading native addons via `process.dlopen`.
+            // This environment flag is especially important for worker threads
+            // so that a worker thread can't load a native addon even if `execArgv`
+            // is overwritten and `--no-addons` is not specified but was specified
+            // for this Environment instance.
+            kNoNativeAddons = 1 << 6,
+            // Set this flag to disable searching modules from global paths like
+            // $HOME/.node_modules and $NODE_PATH. This is used by standalone apps that
+            // do not expect to have their behaviors changed because of globally
+            // installed modules.
+            kNoGlobalSearchPaths = 1 << 7,
+            // Do not export browser globals like setTimeout, console, etc.
+            kNoBrowserGlobals = 1 << 8,
+            // Controls whether or not the Environment should call V8Inspector::create().
+            // This control is needed by embedders who may not want to initialize the V8
+            // inspector in situations where one has already been created,
+            // e.g. Blink's in Chromium.
+            kNoCreateInspector = 1 << 9
+        };
+    } // namespace EnvironmentFlags
 
 }
 

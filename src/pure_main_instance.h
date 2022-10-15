@@ -69,7 +69,6 @@ namespace pure
         // static std::unique_ptr<ExternalReferenceRegistry> registry_;
         std::vector<std::string> args_;
         std::vector<std::string> exec_args_;
-        std::unique_ptr<ArrayBufferAllocator> array_buffer_allocator_;
         v8::Isolate *isolate_;
         MultiIsolatePlatform *platform_;
         std::unique_ptr<IsolateData> isolate_data_;
