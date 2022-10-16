@@ -124,15 +124,18 @@ namespace pure
             return result.exit_code;
         }
 
-        uv_loop_configure(uv_default_loop(), UV_METRICS_IDLE_TIME);
+        {
 
-        PureMainInstance main_instance(
-            uv_default_loop(),
-            result.args,
-            result.exec_args);
-        result.exit_code = main_instance.Run();
+            uv_loop_configure(uv_default_loop(), UV_METRICS_IDLE_TIME);
 
-        //   TearDownOncePerProcess();
+            PureMainInstance main_instance(
+                uv_default_loop(),
+                result.args,
+                result.exec_args);
+            result.exit_code = main_instance.Run();
+        }
+
+        TearDownOncePerProcess();
 
         // std::cout << "Pure > Start End!\n";
 
