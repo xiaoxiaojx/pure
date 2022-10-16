@@ -9,7 +9,6 @@ namespace pure
 {
     class PureMainInstance
     {
-    public:
         // To create a main instance that does not own the isolate,
         // The caller needs to do:
         //
@@ -43,7 +42,6 @@ namespace pure
         //                  MultiIsolatePlatform *platform,
         //                  const std::vector<std::string> &args,
         //                  const std::vector<std::string> &exec_args);
-        // ~PureMainInstance();
 
         // // Start running the Node.js instances, return the exit code when finished.
         // int Run();
@@ -62,15 +60,17 @@ namespace pure
     public:
         PureMainInstance(
             uv_loop_t *event_loop,
-            MultiIsolatePlatform *platform,
             const std::vector<std::string> &args,
             const std::vector<std::string> &exec_args);
+
+        ~PureMainInstance();
+
 
         // static std::unique_ptr<ExternalReferenceRegistry> registry_;
         std::vector<std::string> args_;
         std::vector<std::string> exec_args_;
         v8::Isolate *isolate_;
-        MultiIsolatePlatform *platform_;
+        v8::Platform *platform_;
         std::unique_ptr<IsolateData> isolate_data_;
         std::unique_ptr<v8::Isolate::CreateParams> isolate_params_;
         // const SnapshotData *snapshot_data_ = nullptr;

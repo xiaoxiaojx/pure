@@ -66,6 +66,9 @@ namespace pure
                     EnvironmentFlags::Flags flags);
         ~Environment();
 
+        inline IsolateData *isolate_data() const;
+        inline uv_loop_t* event_loop() const;
+
         struct ContextInfo
         {
             explicit ContextInfo(const std::string &name) : name(name) {}
@@ -125,10 +128,10 @@ namespace pure
     public:
         IsolateData(v8::Isolate *isolate,
                     uv_loop_t *event_loop,
-                    MultiIsolatePlatform *platform = nullptr);
+                    v8::Platform *platform);
 
         inline uv_loop_t *event_loop() const;
-        inline MultiIsolatePlatform *platform() const;
+        inline v8::Platform *platform() const;
 
         IsolateData(const IsolateData &) = delete;
         IsolateData &operator=(const IsolateData &) = delete;
@@ -140,7 +143,7 @@ namespace pure
     private:
         v8::Isolate *const isolate_;
         uv_loop_t *const event_loop_;
-        MultiIsolatePlatform *platform_;
+        v8::Platform *platform_;
         std::shared_ptr<PerIsolateOptions> options_;
 
         void CreateProperties();

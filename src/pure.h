@@ -26,21 +26,6 @@ namespace pure
 
 #define PERFORMANCE_NOW() uv_hrtime()
 
-// __builtin_expect https://www.jianshu.com/p/2684613a300f
-// __builtin_expect() 是 GCC (version >= 2.96）提供给程序员使用的，目的是将“分支转移”的信息提供给编译器，这样编译器可以对代码进行优化，以减少指令跳转带来的性能下降。
-// __builtin_expect((x),1)表示 x 的值为真的可能性更大；
-// __builtin_expect((x),0)表示 x 的值为假的可能性更大。
-// 也就是说，使用likely()，执行 if 后面的语句的机会更大，使用 unlikely()，执行 else 后面的语句的机会更大。通过这种方式，编译器在编译过程中，会将可能性更大的代码紧跟着起面的代码，从而减少指令跳转带来的性能上的下降。
-#ifdef __GNUC__
-#define LIKELY(expr) __builtin_expect(!!(expr), 1)
-#define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
-#define PRETTY_FUNCTION_NAME __PRETTY_FUNCTION__
-#else
-#define LIKELY(expr) expr
-#define UNLIKELY(expr) expr
-#define PRETTY_FUNCTION_NAME ""
-#endif
-
 #ifndef NODE_CONTEXT_EMBEDDER_DATA_INDEX
 #define NODE_CONTEXT_EMBEDDER_DATA_INDEX 32
 #endif
@@ -114,47 +99,47 @@ namespace pure
         virtual bool IdleTasksEnabled() = 0;
     };
 
-    class PURE_EXTERN MultiIsolatePlatform : public v8::Platform
-    {
-    public:
-        ~MultiIsolatePlatform() override = default;
-        // Returns true if work was dispatched or executed. New tasks that are
-        // posted during flushing of the queue are postponed until the next
-        // flushing.
-        virtual bool FlushForegroundTasks(v8::Isolate *isolate) = 0;
-        virtual void DrainTasks(v8::Isolate *isolate) = 0;
+    // class PURE_EXTERN MultiIsolatePlatform : public v8::Platform
+    // {
+    // public:
+    //     ~MultiIsolatePlatform() override = default;
+    //     // Returns true if work was dispatched or executed. New tasks that are
+    //     // posted during flushing of the queue are postponed until the next
+    //     // flushing.
+    //     virtual bool FlushForegroundTasks(v8::Isolate *isolate) = 0;
+    //     virtual void DrainTasks(v8::Isolate *isolate) = 0;
 
-        // This needs to be called between the calls to `Isolate::Allocate()` and
-        // `Isolate::Initialize()`, so that initialization can already start
-        // using the platform.
-        // When using `NewIsolate()`, this is taken care of by that function.
-        // This function may only be called once per `Isolate`.
-        virtual void RegisterIsolate(v8::Isolate *isolate,
-                                     struct uv_loop_s *loop) = 0;
-        // This method can be used when an application handles task scheduling on its
-        // own through `IsolatePlatformDelegate`. Upon registering an isolate with
-        // this overload any other method in this class with the exception of
-        // `UnregisterIsolate` *must not* be used on that isolate.
-        virtual void RegisterIsolate(v8::Isolate *isolate,
-                                     IsolatePlatformDelegate *delegate) = 0;
+    //     // This needs to be called between the calls to `Isolate::Allocate()` and
+    //     // `Isolate::Initialize()`, so that initialization can already start
+    //     // using the platform.
+    //     // When using `NewIsolate()`, this is taken care of by that function.
+    //     // This function may only be called once per `Isolate`.
+    //     virtual void RegisterIsolate(v8::Isolate *isolate,
+    //                                  struct uv_loop_s *loop) = 0;
+    //     // This method can be used when an application handles task scheduling on its
+    //     // own through `IsolatePlatformDelegate`. Upon registering an isolate with
+    //     // this overload any other method in this class with the exception of
+    //     // `UnregisterIsolate` *must not* be used on that isolate.
+    //     virtual void RegisterIsolate(v8::Isolate *isolate,
+    //                                  IsolatePlatformDelegate *delegate) = 0;
 
-        // This function may only be called once per `Isolate`, and discard any
-        // pending delayed tasks scheduled for that isolate.
-        // This needs to be called right before calling `Isolate::Dispose()`.
-        virtual void UnregisterIsolate(v8::Isolate *isolate) = 0;
+    //     // This function may only be called once per `Isolate`, and discard any
+    //     // pending delayed tasks scheduled for that isolate.
+    //     // This needs to be called right before calling `Isolate::Dispose()`.
+    //     virtual void UnregisterIsolate(v8::Isolate *isolate) = 0;
 
-        // The platform should call the passed function once all state associated
-        // with the given isolate has been cleaned up. This can, but does not have to,
-        // happen asynchronously.
-        virtual void AddIsolateFinishedCallback(v8::Isolate *isolate,
-                                                void (*callback)(void *),
-                                                void *data) = 0;
+    //     // The platform should call the passed function once all state associated
+    //     // with the given isolate has been cleaned up. This can, but does not have to,
+    //     // happen asynchronously.
+    //     virtual void AddIsolateFinishedCallback(v8::Isolate *isolate,
+    //                                             void (*callback)(void *),
+    //                                             void *data) = 0;
 
-        static std::unique_ptr<MultiIsolatePlatform> Create(
-            int thread_pool_size,
-            v8::TracingController *tracing_controller = nullptr,
-            v8::PageAllocator *page_allocator = nullptr);
-    };
+    //     static std::unique_ptr<MultiIsolatePlatform> Create(
+    //         int thread_pool_size,
+    //         v8::TracingController *tracing_controller = nullptr,
+    //         v8::PageAllocator *page_allocator = nullptr);
+    // };
 
     enum IsolateSettingsFlags
     {

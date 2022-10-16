@@ -1,8 +1,7 @@
 # Pure
-Pure is a lightweight JavaScript  runtime.（It is mainly used for learning 📖 ✍️）
+Pure is a lightweight JavaScript runtime.
 
 ## Getting Started
-> Only M1 MacBook is supported for now 😢
 ```bash
 # step1: clone
 git clone https://github.com/xiaoxiaojx/pure.git

@@ -1,5 +1,5 @@
-#include "env.h"
 #include "env-inl.h"
+#include "env.h"
 
 #include "v8.h"
 #include "uv.h"
@@ -36,7 +36,7 @@ namespace pure
 
     IsolateData::IsolateData(Isolate *isolate,
                              uv_loop_t *event_loop,
-                             MultiIsolatePlatform *platform)
+                             v8::Platform *platform)
         : isolate_(isolate),
           event_loop_(event_loop),
           platform_(platform)

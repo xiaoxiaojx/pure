@@ -10,17 +10,121 @@ namespace pure
 
 {
 
+    namespace per_process
+    {
+        // Tells whether the per-process V8::Initialize() is called and
+        // if it is safe to call v8::Isolate::TryGetCurrent().
+        extern bool v8_initialized;
+
+        extern std::unique_ptr<v8::Platform> v8_platform;
+
+    } // namespace per_process
+
+    // The reason that Assert() takes a struct argument instead of individual
+    // const char*s is to ease instruction cache pressure in calls from CHECK.
+    struct AssertionInfo
+    {
+        const char *file_line; // filename:line
+        const char *message;
+        const char *function;
+    };
+    [[noreturn]] void Abort();
+    [[noreturn]] void Assert(const AssertionInfo &info);
+
+#define ERROR_AND_ABORT(expr)                                                     \
+    do                                                                            \
+    {                                                                             \
+        /* Make sure that this struct does not end up in inline code, but      */ \
+        /* rather in a read-only data section when modifying this code.        */ \
+        static const pure::AssertionInfo args = {                                 \
+            __FILE__ ":" STRINGIFY(__LINE__), #expr, PRETTY_FUNCTION_NAME};       \
+        pure::Assert(args);                                                       \
+    } while (0)
+
+#define STRINGIFY_(x) #x
+#define STRINGIFY(x) STRINGIFY_(x)
+
+#define CHECK(expr)                \
+    do                             \
+    {                              \
+        if (UNLIKELY(!(expr)))     \
+        {                          \
+            ERROR_AND_ABORT(expr); \
+        }                          \
+    } while (0)
+
+#define CHECK_EQ(a, b) CHECK((a) == (b))
+#define CHECK_GE(a, b) CHECK((a) >= (b))
+#define CHECK_GT(a, b) CHECK((a) > (b))
+#define CHECK_LE(a, b) CHECK((a) <= (b))
+#define CHECK_LT(a, b) CHECK((a) < (b))
+#define CHECK_NE(a, b) CHECK((a) != (b))
+#define CHECK_NULL(val) CHECK((val) == nullptr)
+#define CHECK_NOT_NULL(val) CHECK((val) != nullptr)
+#define CHECK_IMPLIES(a, b) CHECK(!(a) || (b))
+
+#ifdef DEBUG
+#define DCHECK(expr) CHECK(expr)
+#define DCHECK_EQ(a, b) CHECK((a) == (b))
+#define DCHECK_GE(a, b) CHECK((a) >= (b))
+#define DCHECK_GT(a, b) CHECK((a) > (b))
+#define DCHECK_LE(a, b) CHECK((a) <= (b))
+#define DCHECK_LT(a, b) CHECK((a) < (b))
+#define DCHECK_NE(a, b) CHECK((a) != (b))
+#define DCHECK_NULL(val) CHECK((val) == nullptr)
+#define DCHECK_NOT_NULL(val) CHECK((val) != nullptr)
+#define DCHECK_IMPLIES(a, b) CHECK(!(a) || (b))
+#else
+#define DCHECK(expr)
+#define DCHECK_EQ(a, b)
+#define DCHECK_GE(a, b)
+#define DCHECK_GT(a, b)
+#define DCHECK_LE(a, b)
+#define DCHECK_LT(a, b)
+#define DCHECK_NE(a, b)
+#define DCHECK_NULL(val)
+#define DCHECK_NOT_NULL(val)
+#define DCHECK_IMPLIES(a, b)
+#endif
+
+// __builtin_expect https://www.jianshu.com/p/2684613a300f
+// __builtin_expect() 是 GCC (version >= 2.96）提供给程序员使用的，目的是将“分支转移”的信息提供给编译器，这样编译器可以对代码进行优化，以减少指令跳转带来的性能下降。
+// __builtin_expect((x),1)表示 x 的值为真的可能性更大；
+// __builtin_expect((x),0)表示 x 的值为假的可能性更大。
+// 也就是说，使用likely()，执行 if 后面的语句的机会更大，使用 unlikely()，执行 else 后面的语句的机会更大。通过这种方式，编译器在编译过程中，会将可能性更大的代码紧跟着起面的代码，从而减少指令跳转带来的性能上的下降。
+#ifdef __GNUC__
+#define LIKELY(expr) __builtin_expect(!!(expr), 1)
+#define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
+#define PRETTY_FUNCTION_NAME __PRETTY_FUNCTION__
+#else
+#define LIKELY(expr) expr
+#define UNLIKELY(expr) expr
+#define PRETTY_FUNCTION_NAME ""
+#endif
+
+    // Same things, but aborts immediately instead of returning nullptr when
+    // no memory is available.
+    template <typename T>
+    inline T *Realloc(T *pointer, size_t n);
+    template <typename T>
+    inline T *Malloc(size_t n);
+    template <typename T>
+    inline T *Calloc(size_t n);
+
+    inline char *Malloc(size_t n);
+    inline char *Calloc(size_t n);
+    inline char *UncheckedMalloc(size_t n);
+    inline char *UncheckedCalloc(size_t n);
+
+    template <typename T>
+    inline T MultiplyWithOverflowCheck(T a, T b);
+
     template <typename T, size_t N>
     constexpr size_t arraysize(const T (&)[N])
     {
         return N;
     }
 
-    template <typename T, size_t N>
-    constexpr size_t strsize(const T (&)[N])
-    {
-        return N - 1;
-    }
     template <typename T, size_t kStackStorageSize = 1024>
     class MaybeStackBuffer
     {
@@ -76,16 +180,16 @@ namespace pure
         // Content of the buffer in the range [0, length()) is preserved.
         void AllocateSufficientStorage(size_t storage)
         {
-            assert(!IsInvalidated());
+            CHECK(!IsInvalidated());
             if (storage > capacity())
             {
                 // TODO
-                // bool was_allocated = IsAllocated();
-                // T *allocated_ptr = was_allocated ? buf_ : nullptr;
-                // buf_ = realloc((char *)allocated_ptr, storage);
-                // capacity_ = storage;
-                // if (!was_allocated && length_ > 0)
-                //     memcpy(buf_, buf_st_, length_ * sizeof(buf_[0]));
+                bool was_allocated = IsAllocated();
+                T *allocated_ptr = was_allocated ? buf_ : nullptr;
+                buf_ = Realloc(allocated_ptr, storage);
+                capacity_ = storage;
+                if (!was_allocated && length_ > 0)
+                    memcpy(buf_, buf_st_, length_ * sizeof(buf_[0]));
             }
 
             length_ = storage;

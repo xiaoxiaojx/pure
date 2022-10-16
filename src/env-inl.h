@@ -1,8 +1,8 @@
 #ifndef SRC_ENV_INL_H_
 #define SRC_ENV_INL_H_
 
-#include "env.h"
 #include "util.h"
+#include "env.h"
 #include "v8.h"
 
 namespace pure
@@ -81,11 +81,21 @@ namespace pure
         // context->SetAlignedPointerInEmbedderData(
         //     ContextEmbedderIndex::kBindingListIndex, &(this->bindings_));
 
-// #if HAVE_INSPECTOR
-//         inspector_agent()->ContextCreated(context, info);
-// #endif // HAVE_INSPECTOR
+        // #if HAVE_INSPECTOR
+        //         inspector_agent()->ContextCreated(context, info);
+        // #endif // HAVE_INSPECTOR
 
-//         this->async_hooks()->AddContext(context);
+        //         this->async_hooks()->AddContext(context);
+    }
+
+    inline IsolateData *Environment::isolate_data() const
+    {
+        return isolate_data_;
+    }
+
+    inline uv_loop_t *Environment::event_loop() const
+    {
+        return isolate_data()->event_loop();
     }
 }
 
