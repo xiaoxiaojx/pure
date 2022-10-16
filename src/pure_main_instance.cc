@@ -6,15 +6,29 @@
 #include "pure_mutex.h"
 
 #include "env.h"
+#include "pure.h"
+
 #include "env-inl.h"
 
 #include "pure_options.h"
 #include "pure_errors.h"
 
-using v8::Isolate;
-
 namespace pure
 {
+
+  using v8::Context;
+  using v8::HandleScope;
+  using v8::Isolate;
+  using v8::Local;
+  using v8::Locker;
+  using v8::String;
+  using v8::Value;
+
+  using v8::Isolate;
+  using v8::Local;
+  using v8::Object;
+
+  // Local<Context> NewContext(Isolate *);
 
   static std::atomic<uint64_t> next_thread_id{0};
 
@@ -116,5 +130,70 @@ namespace pure
     }
     // This should only be done on a main instance that owns its isolate.
     isolate_->Dispose();
+  }
+
+  DeleteFnPtr<Environment, FreeEnvironment>
+  PureMainInstance::CreateMainEnvironment(int *exit_code)
+  {
+    *exit_code = 0; // Reset the exit code to 0
+
+    HandleScope handle_scope(isolate_);
+
+    // TODO(addaleax): This should load a real per-Isolate option, currently
+    // this is still effectively per-process.
+    // if (isolate_data_->options()->track_heap_objects)
+    // {
+    //   isolate_->GetHeapProfiler()->StartTrackingHeapObjects(true);
+    // }
+
+    Local<Context> context;
+    DeleteFnPtr<Environment, FreeEnvironment> env;
+
+    context = NewContext(isolate_);
+    CHECK(!context.IsEmpty());
+    Context::Scope context_scope(context);
+    env.reset(new Environment(isolate_data_.get(),
+                              context,
+                              args_,
+                              exec_args_,
+                              EnvironmentFlags::kDefaultFlags));
+
+    if (env->RunBootstrapping().IsEmpty())
+    {
+      return nullptr;
+    }
+    return env;
+  }
+
+  int PureMainInstance::Run()
+  {
+    Locker locker(isolate_);
+    Isolate::Scope isolate_scope(isolate_);
+    HandleScope handle_scope(isolate_);
+
+    int exit_code = 0;
+    DeleteFnPtr<Environment, FreeEnvironment> env =
+        CreateMainEnvironment(&exit_code);
+    CHECK_NOT_NULL(env);
+
+    Context::Scope context_scope(env->context());
+    Run(&exit_code, env.get());
+    return exit_code;
+  }
+
+  void PureMainInstance::Run(int *exit_code, Environment *env)
+  {
+    if (*exit_code == 0)
+    {
+      // LoadEnvironment(env, StartExecutionCallback{});
+
+      // *exit_code = SpinEventLoop(env).FromMaybe(1);
+    }
+
+    ResetStdio();
+
+#if defined(LEAK_SANITIZER)
+    __lsan_do_leak_check();
+#endif
   }
 }

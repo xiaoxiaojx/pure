@@ -9,6 +9,19 @@
 
 namespace pure
 {
+
+    using v8::Context;
+    using v8::HandleScope;
+    using v8::Isolate;
+    using v8::Local;
+    using v8::Locker;
+
+    using v8::Isolate;
+    using v8::Local;
+    using v8::Object;
+
+    Local<Context> NewContext(Isolate *);
+
     class PerIsolateOptions;
     class IsolateData;
 
@@ -51,9 +64,10 @@ namespace pure
         // InitializeMainContext() to initialize a main context for it.
         Environment(IsolateData *isolate_data,
                     v8::Isolate *isolate,
+                    // vector https://blog.csdn.net/u014779536/article/details/111239643
+                    // vector 是表示可以改变大小的数组的序列容器。
                     const std::vector<std::string> &args,
                     const std::vector<std::string> &exec_args,
-                    const EnvSerializeInfo *env_info,
                     EnvironmentFlags::Flags flags);
         void InitializeMainContext(v8::Local<v8::Context> context,
                                    const EnvSerializeInfo *env_info);
@@ -62,12 +76,30 @@ namespace pure
                     v8::Local<v8::Context> context,
                     const std::vector<std::string> &args,
                     const std::vector<std::string> &exec_args,
-                    const EnvSerializeInfo *env_info,
                     EnvironmentFlags::Flags flags);
         ~Environment();
 
+        void CleanupHandles();
+        void RunCleanup();
+        void AtExit(void (*cb)(void *arg), void *arg);
+        void RunAtExitCallbacks();
+
+        v8::MaybeLocal<v8::Value> RunBootstrapping();
+
+        inline v8::Isolate *isolate() const;
         inline IsolateData *isolate_data() const;
-        inline uv_loop_t* event_loop() const;
+        inline uv_loop_t *event_loop() const;
+        std::atomic_bool is_stopping_{false};
+
+        inline bool is_stopping() const;
+        inline void set_stopping(bool value);
+        bool started_cleanup_ = false;
+
+        inline bool has_run_bootstrapping_code() const;
+        inline void DoneBootstrapping();
+        v8::MaybeLocal<v8::Value> BootstrapNode();
+
+        v8::MaybeLocal<v8::Value> BootstrapInternalLoaders();
 
         struct ContextInfo
         {
@@ -95,6 +127,7 @@ namespace pure
         uv_check_t idle_check_handle_;
         uv_async_t task_queues_async_;
         int64_t task_queues_async_refs_ = 0;
+        bool has_run_bootstrapping_code_ = false;
 
         // ImmediateInfo immediate_info_;
         // TickInfo tick_info_;
@@ -148,6 +181,12 @@ namespace pure
 
         void CreateProperties();
     };
+
+    v8::MaybeLocal<v8::Value> ExecuteBootstrapper(
+        Environment *env,
+        const char *id,
+        std::vector<v8::Local<v8::String>> *parameters,
+        std::vector<v8::Local<v8::Value>> *arguments);
 }
 
 #endif // SRC_ENV_H_

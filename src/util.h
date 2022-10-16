@@ -18,7 +18,33 @@ namespace pure
 
         extern std::unique_ptr<v8::Platform> v8_platform;
 
-    } // namespace per_process
+    }
+
+    // Convenience wrapper around v8::String::NewFromOneByte().
+    inline v8::Local<v8::String> OneByteString(v8::Isolate *isolate,
+                                               const char *data,
+                                               int length = -1);
+
+    // For the people that compile with -funsigned-char.
+    inline v8::Local<v8::String> OneByteString(v8::Isolate *isolate,
+                                               const signed char *data,
+                                               int length = -1);
+
+    inline v8::Local<v8::String> OneByteString(v8::Isolate *isolate,
+                                               const unsigned char *data,
+                                               int length = -1);
+
+    template <typename T, void (*function)(T *)>
+    struct FunctionDeleter
+    {
+        // operator() 操作符让一个结构体能够像一个函数一样被调用
+        // 类似于 js 中的函数, 也是对象
+        void operator()(T *pointer) const { function(pointer); }
+        typedef std::unique_ptr<T, FunctionDeleter> Pointer;
+    };
+
+    template <typename T, void (*function)(T *)>
+    using DeleteFnPtr = typename FunctionDeleter<T, function>::Pointer;
 
     // The reason that Assert() takes a struct argument instead of individual
     // const char*s is to ease instruction cache pressure in calls from CHECK.
@@ -124,6 +150,8 @@ namespace pure
     {
         return N;
     }
+
+    int ReadFileSync(std::string *result, const char *path);
 
     template <typename T, size_t kStackStorageSize = 1024>
     class MaybeStackBuffer

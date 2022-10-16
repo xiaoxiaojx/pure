@@ -7,6 +7,8 @@
 
 namespace pure
 {
+    void FreeEnvironment(Environment *env);
+
     class PureMainInstance
     {
         // To create a main instance that does not own the isolate,
@@ -65,6 +67,11 @@ namespace pure
 
         ~PureMainInstance();
 
+        DeleteFnPtr<Environment, FreeEnvironment> CreateMainEnvironment(
+            int *exit_code);
+
+        int Run();
+        void Run(int *exit_code, Environment *env);
 
         // static std::unique_ptr<ExternalReferenceRegistry> registry_;
         std::vector<std::string> args_;

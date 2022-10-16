@@ -97,6 +97,35 @@ namespace pure
     {
         return isolate_data()->event_loop();
     }
+
+    inline bool Environment::is_stopping() const
+    {
+        return is_stopping_.load();
+    }
+
+    inline void Environment::set_stopping(bool value)
+    {
+        is_stopping_.store(value);
+    }
+
+    inline v8::Isolate *Environment::isolate() const
+    {
+        return isolate_;
+    }
+
+    inline bool Environment::has_run_bootstrapping_code() const
+    {
+        return has_run_bootstrapping_code_;
+    }
+
+    inline void Environment::DoneBootstrapping()
+    {
+        has_run_bootstrapping_code_ = true;
+        // This adjusts the return value of base_object_created_after_bootstrap() so
+        // that tests that check the count do not have to account for internally
+        // created BaseObjects.
+        // base_object_created_by_bootstrap_ = base_object_count_;
+    }
 }
 
 #endif // SRC_ENV_INL_H_

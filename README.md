@@ -1,7 +1,9 @@
 # Pure
+
 Pure is a lightweight JavaScript runtime.
 
 ## Getting Started
+
 ```bash
 # step1: clone
 git clone https://github.com/xiaoxiaojx/pure.git
@@ -10,5 +12,7 @@ git clone https://github.com/xiaoxiaojx/pure.git
 make build
 
 # step3: run
-./pure
+./pure ./hello.js
+
+# >>> JavaScript 文件运行结果为: hello world～
 ```

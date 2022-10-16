@@ -16,14 +16,28 @@
 #include "pure.h"
 #include "uv.h"
 #include "v8.h"
+
 #include "util.h"
+
+#include "pure_native_module.h"
 
 #include "libplatform/libplatform.h"
 
 #include "pure_main_instance.h"
+
 namespace pure
 {
+    using v8::EscapableHandleScope;
+    using v8::Function;
+    using v8::FunctionCallbackInfo;
+    using v8::Isolate;
+    using v8::Local;
+    using v8::MaybeLocal;
+    using v8::Object;
+    using v8::String;
+    using v8::Undefined;
     using v8::V8;
+    using v8::Value;
 
     namespace per_process
     {
@@ -61,6 +75,8 @@ namespace pure
 
         // TODO
 
+        result.args = std::vector<std::string>{std::string(argv[1])};
+
         return result;
     }
 
@@ -73,15 +89,31 @@ namespace pure
     {
         per_process::v8_initialized = false;
         V8::Dispose();
-
-        // uv_run cannot be called from the time before the beforeExit callback
-        // runs until the program exits unless the event loop has any referenced
-        // handles after beforeExit terminates. This prevents unrefed timers
-        // that happen to terminate during shutdown from being run unsafely.
-        // Since uv_run cannot be called, uv_async handles held by the platform
-        // will never be fully cleaned up.
-        std::unique_ptr<v8::Platform> platform = std::move(per_process::v8_platform);
+        per_process::v8_platform.reset();
         // platform.Dispose();
+    }
+
+    MaybeLocal<Value> ExecuteBootstrapper(Environment *env,
+                                          const char *id,
+                                          std::vector<Local<String>> *parameters,
+                                          std::vector<Local<Value>> *arguments)
+    {
+        EscapableHandleScope scope(env->isolate());
+        MaybeLocal<Function> maybe_fn =
+            native_module::LookupAndCompile(env->context(), id, parameters, env);
+
+        Local<Function> fn;
+        if (!maybe_fn.ToLocal(&fn))
+        {
+            return MaybeLocal<Value>();
+        }
+
+        MaybeLocal<Value> result = fn->Call(env->context(),
+                                            Undefined(env->isolate()),
+                                            arguments->size(),
+                                            arguments->data());
+
+        return scope.EscapeMaybe(result);
     }
 
     int Start(int argc, char **argv)
@@ -98,11 +130,11 @@ namespace pure
             uv_default_loop(),
             result.args,
             result.exec_args);
-        // result.exit_code = main_instance.Run();
+        result.exit_code = main_instance.Run();
 
         //   TearDownOncePerProcess();
 
-        std::cout << "Pure > Start End!\n";
+        // std::cout << "Pure > Start End!\n";
 
         return result.exit_code;
     }

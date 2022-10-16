@@ -169,6 +169,8 @@ namespace pure
 
     PURE_EXTERN void PromiseRejectCallback(v8::PromiseRejectMessage message);
 
+    void ResetStdio(); // Safe to call more than once and from signal handlers.
+
     enum ContextEmbedderIndex
     {
         kEnvironment = NODE_CONTEXT_EMBEDDER_DATA_INDEX,
