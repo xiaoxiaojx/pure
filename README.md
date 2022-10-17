@@ -14,5 +14,5 @@ make build
 # step3: run
 ./pure ./hello.js
 
-# >>> JavaScript 文件运行结果为: hello world～
+# hello world~
 ```

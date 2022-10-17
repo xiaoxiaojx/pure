@@ -1,7 +1,4 @@
-// xxxx
-(() => {
-  const str1 = "hello";
-  const str2 = "world";
+const str1 = "hello";
+const str2 = "world";
 
-  return str1 + " " + str2 + "～";
-})();
+console.log(str1 + " " + str2 + "~");

@@ -10,22 +10,15 @@
 namespace pure
 {
     using v8::Context;
-    using v8::DEFAULT;
     using v8::EscapableHandleScope;
     using v8::Function;
-    using v8::FunctionCallbackInfo;
     using v8::IntegrityLevel;
     using v8::Isolate;
     using v8::Local;
     using v8::MaybeLocal;
-    using v8::Name;
-    using v8::None;
     using v8::Object;
-    using v8::PropertyCallbackInfo;
     using v8::ScriptCompiler;
     using v8::ScriptOrigin;
-    using v8::Set;
-    using v8::SideEffectType;
     using v8::String;
     using v8::Value;
 
@@ -133,8 +126,6 @@ namespace pure
             v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
 
             v8::String::Utf8Value utf8(isolate, result);
-
-            std::cout << ">>> JavaScript 文件运行结果为: " << *utf8 << "\n";
 
             // MaybeLocal<Function> maybe_fun =
             //     ScriptCompiler::CompileFunctionInContext(context,

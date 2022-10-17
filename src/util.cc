@@ -9,7 +9,6 @@
 namespace pure
 {
 
-    using v8::ArrayBufferView;
     using v8::Isolate;
     using v8::Local;
     using v8::String;

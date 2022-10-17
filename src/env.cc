@@ -8,40 +8,27 @@
 // #include "util.h"
 #include "pure_options.h"
 #include "pure.h"
+#include "console.h"
 #include <iostream>
 
 namespace pure
 {
 
-    using v8::Array;
-    using v8::Boolean;
     using v8::Context;
     using v8::EscapableHandleScope;
     using v8::Function;
     using v8::FunctionTemplate;
     using v8::HandleScope;
-    using v8::HeapSpaceStatistics;
-    using v8::Integer;
     using v8::Isolate;
     using v8::Just;
     using v8::Local;
     using v8::Maybe;
     using v8::MaybeLocal;
-    using v8::NewStringType;
     using v8::Nothing;
-    using v8::Number;
     using v8::Object;
-    using v8::ObjectTemplate;
-    using v8::Private;
     using v8::Script;
     using v8::SealHandleScope;
-    using v8::SnapshotCreator;
-    using v8::StackTrace;
     using v8::String;
-    using v8::Symbol;
-    using v8::TracingController;
-    using v8::TryCatch;
-    using v8::Undefined;
     using v8::Value;
 
     IsolateData::IsolateData(Isolate *isolate,
@@ -514,81 +501,84 @@ namespace pure
         return MaybeLocal<Value>();
     }
 
-    MaybeLocal<Value> Environment::BootstrapNode()
+    Maybe<bool> Environment::BootstrapPure()
     {
-        // EscapableHandleScope scope(isolate_);
-
-        // Local<Object> global = context()->Global();
-        // // TODO(joyeecheung): this can be done in JS land now.
-        // global->Set(context(), FIXED_ONE_BYTE_STRING(isolate_, "global"), global)
-        //     .Check();
-
-        // // process, require, internalBinding, primordials
-        // std::vector<Local<String>> node_params = {
-        //     process_string(),
-        //     require_string(),
-        //     internal_binding_string(),
-        //     primordials_string()};
-        // std::vector<Local<Value>> node_args = {
-        //     process_object(),
-        //     native_module_require(),
-        //     internal_binding_loader(),
-        //     primordials()};
-
-        // MaybeLocal<Value> result = ExecuteBootstrapper(
-        //     this, "internal/bootstrap/node", &node_params, &node_args);
-
-        // if (result.IsEmpty())
-        // {
-        //     return MaybeLocal<Value>();
-        // }
-
-        // if (!no_browser_globals())
-        // {
-        //     result = ExecuteBootstrapper(
-        //         this, "internal/bootstrap/browser", &node_params, &node_args);
-
-        //     if (result.IsEmpty())
-        //     {
-        //         return MaybeLocal<Value>();
-        //     }
-        // }
-
-        // // TODO(joyeecheung): skip these in the snapshot building for workers.
-        // auto thread_switch_id =
-        //     is_main_thread() ? "internal/bootstrap/switches/is_main_thread"
-        //                      : "internal/bootstrap/switches/is_not_main_thread";
-        // result =
-        //     ExecuteBootstrapper(this, thread_switch_id, &node_params, &node_args);
-
-        // if (result.IsEmpty())
-        // {
-        //     return MaybeLocal<Value>();
-        // }
-
-        // auto process_state_switch_id =
-        //     owns_process_state()
-        //         ? "internal/bootstrap/switches/does_own_process_state"
-        //         : "internal/bootstrap/switches/does_not_own_process_state";
-        // result = ExecuteBootstrapper(
-        //     this, process_state_switch_id, &node_params, &node_args);
-
-        // if (result.IsEmpty())
-        // {
-        //     return MaybeLocal<Value>();
-        // }
-
-        // Local<String> env_string = FIXED_ONE_BYTE_STRING(isolate_, "env");
-        // Local<Object> env_var_proxy;
-        // if (!CreateEnvVarProxy(context(), isolate_).ToLocal(&env_var_proxy) ||
-        //     process_object()->Set(context(), env_string, env_var_proxy).IsNothing())
-        // {
-        //     return MaybeLocal<Value>();
-        // }
-
-        // return scope.EscapeMaybe(result);
-        return MaybeLocal<Value>();
+        HandleScope scope(isolate_);
+        Local<Object> consoleObj = console::Create(this).ToLocalChecked();
+        Local<Object> global = context()->Global();
+        global->Set(context(), FIXED_ONE_BYTE_STRING(isolate_, "console"), consoleObj);
+        global->Set(context(), FIXED_ONE_BYTE_STRING(isolate_, "global"), global).Check();
+        return Just(true);
     }
+
+    // MaybeLocal<Value> Environment::BootstrapNode()
+    // {
+    //     // EscapableHandleScope scope(isolate_);
+    //     // // process, require, internalBinding, primordials
+    //     // std::vector<Local<String>> node_params = {
+    //     //     process_string(),
+    //     //     require_string(),
+    //     //     internal_binding_string(),
+    //     //     primordials_string()};
+    //     // std::vector<Local<Value>> node_args = {
+    //     //     process_object(),
+    //     //     native_module_require(),
+    //     //     internal_binding_loader(),
+    //     //     primordials()};
+
+    //     // MaybeLocal<Value> result = ExecuteBootstrapper(
+    //     //     this, "internal/bootstrap/node", &node_params, &node_args);
+
+    //     // if (result.IsEmpty())
+    //     // {
+    //     //     return MaybeLocal<Value>();
+    //     // }
+
+    //     // if (!no_browser_globals())
+    //     // {
+    //     //     result = ExecuteBootstrapper(
+    //     //         this, "internal/bootstrap/browser", &node_params, &node_args);
+
+    //     //     if (result.IsEmpty())
+    //     //     {
+    //     //         return MaybeLocal<Value>();
+    //     //     }
+    //     // }
+
+    //     // // TODO(joyeecheung): skip these in the snapshot building for workers.
+    //     // auto thread_switch_id =
+    //     //     is_main_thread() ? "internal/bootstrap/switches/is_main_thread"
+    //     //                      : "internal/bootstrap/switches/is_not_main_thread";
+    //     // result =
+    //     //     ExecuteBootstrapper(this, thread_switch_id, &node_params, &node_args);
+
+    //     // if (result.IsEmpty())
+    //     // {
+    //     //     return MaybeLocal<Value>();
+    //     // }
+
+    //     // auto process_state_switch_id =
+    //     //     owns_process_state()
+    //     //         ? "internal/bootstrap/switches/does_own_process_state"
+    //     //         : "internal/bootstrap/switches/does_not_own_process_state";
+    //     // result = ExecuteBootstrapper(
+    //     //     this, process_state_switch_id, &node_params, &node_args);
+
+    //     // if (result.IsEmpty())
+    //     // {
+    //     //     return MaybeLocal<Value>();
+    //     // }
+
+    //     // Local<String> env_string = FIXED_ONE_BYTE_STRING(isolate_, "env");
+    //     // Local<Object> env_var_proxy;
+    //     // if (!CreateEnvVarProxy(context(), isolate_).ToLocal(&env_var_proxy) ||
+    //     //     process_object()->Set(context(), env_string, env_var_proxy).IsNothing())
+    //     // {
+    //     //     return MaybeLocal<Value>();
+    //     // }
+
+    //     // return scope.EscapeMaybe(result);
+    // }
 
     MaybeLocal<Value> Environment::RunBootstrapping()
     {
@@ -596,6 +586,8 @@ namespace pure
         HandleScope scope(isolate_);
         std::vector<Local<String>> loaders_params = {};
         std::vector<Local<Value>> loaders_args = {};
+
+        BootstrapPure();
 
         ExecuteBootstrapper(this, argv_.front().c_str(), &loaders_params, &loaders_args);
         //     EscapableHandleScope scope(isolate_);

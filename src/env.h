@@ -11,14 +11,15 @@ namespace pure
 {
 
     using v8::Context;
-    using v8::HandleScope;
     using v8::Isolate;
     using v8::Local;
-    using v8::Locker;
 
     using v8::Isolate;
     using v8::Local;
+    using v8::Maybe;
+    using v8::MaybeLocal;
     using v8::Object;
+    using v8::Value;
 
     Local<Context> NewContext(Isolate *);
 
@@ -97,7 +98,8 @@ namespace pure
 
         inline bool has_run_bootstrapping_code() const;
         inline void DoneBootstrapping();
-        v8::MaybeLocal<v8::Value> BootstrapNode();
+        // v8::MaybeLocal<v8::Value> BootstrapNode();
+        Maybe<bool> BootstrapPure();
 
         v8::MaybeLocal<v8::Value> BootstrapInternalLoaders();
 
@@ -111,6 +113,18 @@ namespace pure
 
         inline void AssignToContext(v8::Local<v8::Context> context,
                                     const ContextInfo &info);
+
+        inline v8::Local<v8::FunctionTemplate> NewFunctionTemplate(
+            v8::FunctionCallback callback,
+            v8::Local<v8::Signature> signature = v8::Local<v8::Signature>(),
+            v8::ConstructorBehavior behavior = v8::ConstructorBehavior::kAllow,
+            v8::SideEffectType side_effect = v8::SideEffectType::kHasSideEffect,
+            const v8::CFunction *c_function = nullptr);
+
+        // Convenience methods for NewFunctionTemplate().
+        inline void SetMethod(v8::Local<v8::Object> that,
+                              const char *name,
+                              v8::FunctionCallback callback);
 
     private:
         v8::Global<v8::Context> context_;
