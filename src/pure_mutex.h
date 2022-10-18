@@ -27,8 +27,13 @@ namespace pure
   public:
     ExclusiveAccess() = default;
 
+    // explicit https://zhuanlan.zhihu.com/p/52152355
+    // 指定构造函数或转换函数 (C++11起)为显式, 即它不能用于隐式转换和复制初始化.
+    // explicit 指定符可以与常量表达式一同使用. 函数若且唯若该常量表达式求值为 true 才为显式. (C++20起)
     template <typename... Args>
     explicit ExclusiveAccess(Args &&...args)
+    // forward https://lamforest.github.io/2021/04/29/cpp/wan-mei-zhuan-fa-yin-yong-zhe-die-wan-neng-yin-yong-std-forward/
+    // 完美转发, 用于保持左值, 右值, 文章写得很清楚
         : item_(std::forward<Args>(args)...) {}
 
     ExclusiveAccess(const ExclusiveAccess &) = delete;

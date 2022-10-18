@@ -5,6 +5,13 @@
 #include <vector>
 #include "v8.h"
 
+// PURE_EXTERN https://www.jianshu.com/p/1e6315145fcf
+// GNU C 的一大特色就是attribute 机制。
+// 试想这样的情景，程序调用某函数A，A函数存在于两个动态链接库liba.so,libb.so中，并且程序执行需要链接这两个库，此时程序调用的A函数到底是来自于a还是b呢？
+// 这取决于链接时的顺序，比如先链接liba.so，这时候通过liba.so的导出符号表就可以找到函数A的定义，并加入到符号表中，链接libb.so的时候，符号表中已经存在函数A，就不会再更新符号表，所以调用的始终是liba.so中的A函数。
+// 为了避免这种混乱，所以使用
+// __attribute__((visibility("default")))  //默认，设置为：default之后就可以让外面的类看见了。
+// __attribute__((visibility("hideen")))  //隐藏
 #ifdef _WIN32
 #ifndef BUILDING_NODE_EXTENSION
 #define PURE_EXTERN __declspec(dllexport)
@@ -46,13 +53,6 @@ namespace pure
 #define NODE_BINDING_LIST_INDEX 36
 #endif
 
-    // PURE_EXTERN https://www.jianshu.com/p/1e6315145fcf
-    // GNU C 的一大特色就是attribute 机制。
-    // 试想这样的情景，程序调用某函数A，A函数存在于两个动态链接库liba.so,libb.so中，并且程序执行需要链接这两个库，此时程序调用的A函数到底是来自于a还是b呢？
-    // 这取决于链接时的顺序，比如先链接liba.so，这时候通过liba.so的导出符号表就可以找到函数A的定义，并加入到符号表中，链接libb.so的时候，符号表中已经存在函数A，就不会再更新符号表，所以调用的始终是liba.so中的A函数。
-    // 为了避免这种混乱，所以使用
-    // __attribute__((visibility("default")))  //默认，设置为：default之后就可以让外面的类看见了。
-    // __attribute__((visibility("hideen")))  //隐藏
     PURE_EXTERN int Start(int argc, char *argv[]);
 
     struct InitializationResult
