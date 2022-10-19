@@ -33,6 +33,13 @@ namespace pure
 
 #define PERFORMANCE_NOW() uv_hrtime()
 
+#ifndef PURE_STRINGIFY
+#define PURE_STRINGIFY(n) PURE_STRINGIFY_HELPER(n)
+#define PURE_STRINGIFY_HELPER(n) #n
+#endif
+
+#define PURE_MODULE_VERSION 1
+
 #ifndef NODE_CONTEXT_EMBEDDER_DATA_INDEX
 #define NODE_CONTEXT_EMBEDDER_DATA_INDEX 32
 #endif
@@ -54,6 +61,38 @@ namespace pure
 #endif
 
     PURE_EXTERN int Start(int argc, char *argv[]);
+
+    extern "C" PURE_EXTERN void pure_module_register(void* mod);
+
+
+    typedef void (*addon_register_func)(
+        v8::Local<v8::Object> exports,
+        v8::Local<v8::Value> module,
+        void *priv);
+
+    typedef void (*addon_context_register_func)(
+        v8::Local<v8::Object> exports,
+        v8::Local<v8::Value> module,
+        v8::Local<v8::Context> context,
+        void *priv);
+
+    enum ModuleFlags
+    {
+        kLinked = 0x02
+    };
+
+    struct pure_module
+    {
+        int nm_version;
+        unsigned int nm_flags;
+        void *nm_dso_handle;
+        const char *nm_filename;
+        pure::addon_register_func nm_register_func;
+        pure::addon_context_register_func nm_context_register_func;
+        const char *nm_modname;
+        void *nm_priv;
+        struct pure_module *nm_link;
+    };
 
     struct InitializationResult
     {
@@ -213,7 +252,7 @@ namespace pure
             // for this Environment instance.
             kNoNativeAddons = 1 << 6,
             // Set this flag to disable searching modules from global paths like
-            // $HOME/.node_modules and $NODE_PATH. This is used by standalone apps that
+            // $HOME/.pure_modules and $NODE_PATH. This is used by standalone apps that
             // do not expect to have their behaviors changed because of globally
             // installed modules.
             kNoGlobalSearchPaths = 1 << 7,

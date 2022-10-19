@@ -163,6 +163,18 @@ namespace pure
         that->Set(context, name_string, function).Check();
         function->SetName(name_string); // NODE_SET_METHOD() compatibility.
     }
+
+#define V(PropertyName, TypeName)                                          \
+    inline v8::Local<TypeName> Environment::PropertyName() const           \
+    {                                                                      \
+        return PersistentToLocal::Strong(PropertyName##_);                 \
+    }                                                                      \
+    inline void Environment::set_##PropertyName(v8::Local<TypeName> value) \
+    {                                                                      \
+        PropertyName##_.Reset(isolate(), value);                           \
+    }
+    ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)
+#undef V
 }
 
 #endif // SRC_ENV_INL_H_

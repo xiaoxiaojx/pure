@@ -24,6 +24,7 @@
 #include "libplatform/libplatform.h"
 
 #include "pure_main_instance.h"
+#include "pure_binding.h"
 
 namespace pure
 {
@@ -64,6 +65,8 @@ namespace pure
 
         // atexit 类似于 Node.js process.on("exit", fn)
         atexit(ResetStdio);
+
+        binding::RegisterBuiltinModules();
 
         per_process::v8_platform = v8::platform::NewDefaultPlatform();
 

@@ -10,6 +10,9 @@
 namespace pure
 {
 
+#define ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V) \
+    V(binding_data_ctor_template, v8::FunctionTemplate)
+
     using v8::Context;
     using v8::Isolate;
     using v8::Local;
@@ -111,6 +114,8 @@ namespace pure
             bool is_default = false;
         };
 
+        void CreateProperties();
+
         inline void AssignToContext(v8::Local<v8::Context> context,
                                     const ContextInfo &info);
 
@@ -126,7 +131,16 @@ namespace pure
                               const char *name,
                               v8::FunctionCallback callback);
 
+#define V(PropertyName, TypeName)                    \
+    inline v8::Local<TypeName> PropertyName() const; \
+    inline void set_##PropertyName(v8::Local<TypeName> value);
+        ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)
+#undef V
+
     private:
+#define V(PropertyName, TypeName) v8::Global<TypeName> PropertyName##_;
+        ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)
+#undef V
         v8::Global<v8::Context> context_;
 
         static void *const kNodeContextTagPtr;
