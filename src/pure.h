@@ -62,8 +62,9 @@ namespace pure
 
     PURE_EXTERN int Start(int argc, char *argv[]);
 
-    extern "C" PURE_EXTERN void pure_module_register(void* mod);
+    PURE_EXTERN bool ShouldAbortOnUncaughtException(v8::Isolate *isolate);
 
+    extern "C" PURE_EXTERN void pure_module_register(void *mod);
 
     typedef void (*addon_register_func)(
         v8::Local<v8::Object> exports,
@@ -137,48 +138,6 @@ namespace pure
         virtual std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner() = 0;
         virtual bool IdleTasksEnabled() = 0;
     };
-
-    // class PURE_EXTERN MultiIsolatePlatform : public v8::Platform
-    // {
-    // public:
-    //     ~MultiIsolatePlatform() override = default;
-    //     // Returns true if work was dispatched or executed. New tasks that are
-    //     // posted during flushing of the queue are postponed until the next
-    //     // flushing.
-    //     virtual bool FlushForegroundTasks(v8::Isolate *isolate) = 0;
-    //     virtual void DrainTasks(v8::Isolate *isolate) = 0;
-
-    //     // This needs to be called between the calls to `Isolate::Allocate()` and
-    //     // `Isolate::Initialize()`, so that initialization can already start
-    //     // using the platform.
-    //     // When using `NewIsolate()`, this is taken care of by that function.
-    //     // This function may only be called once per `Isolate`.
-    //     virtual void RegisterIsolate(v8::Isolate *isolate,
-    //                                  struct uv_loop_s *loop) = 0;
-    //     // This method can be used when an application handles task scheduling on its
-    //     // own through `IsolatePlatformDelegate`. Upon registering an isolate with
-    //     // this overload any other method in this class with the exception of
-    //     // `UnregisterIsolate` *must not* be used on that isolate.
-    //     virtual void RegisterIsolate(v8::Isolate *isolate,
-    //                                  IsolatePlatformDelegate *delegate) = 0;
-
-    //     // This function may only be called once per `Isolate`, and discard any
-    //     // pending delayed tasks scheduled for that isolate.
-    //     // This needs to be called right before calling `Isolate::Dispose()`.
-    //     virtual void UnregisterIsolate(v8::Isolate *isolate) = 0;
-
-    //     // The platform should call the passed function once all state associated
-    //     // with the given isolate has been cleaned up. This can, but does not have to,
-    //     // happen asynchronously.
-    //     virtual void AddIsolateFinishedCallback(v8::Isolate *isolate,
-    //                                             void (*callback)(void *),
-    //                                             void *data) = 0;
-
-    //     static std::unique_ptr<MultiIsolatePlatform> Create(
-    //         int thread_pool_size,
-    //         v8::TracingController *tracing_controller = nullptr,
-    //         v8::PageAllocator *page_allocator = nullptr);
-    // };
 
     enum IsolateSettingsFlags
     {

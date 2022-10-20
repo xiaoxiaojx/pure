@@ -114,6 +114,17 @@ namespace pure
         return isolate_;
     }
 
+    inline bool Environment::is_main_thread() const
+    {
+        // TODO 暂时不支持线程
+        return true;
+    }
+
+    inline bool Environment::abort_on_uncaught_exception() const
+    {
+        return options_->abort_on_uncaught_exception;
+    }
+
     inline bool Environment::has_run_bootstrapping_code() const
     {
         return has_run_bootstrapping_code_;

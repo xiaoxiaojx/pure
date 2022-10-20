@@ -5,8 +5,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "env.h"
 #include "pure_mutex.h"
+#include "pure.h"
 
 namespace pure
 {
@@ -32,6 +32,7 @@ namespace pure
         {
         public:
                 // TODO
+                bool abort_on_uncaught_exception = false;
 
                 std::vector<std::string> user_argv;
 
@@ -73,6 +74,7 @@ namespace pure
                 // snapshot used in different isolates in the same process to be the same.
                 // Therefore --node-snapshot is a per-process option.
                 bool node_snapshot = true;
+                bool report_on_fatalerror = false;
 
                 std::vector<std::string> security_reverts;
                 bool print_bash_completion = false;

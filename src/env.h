@@ -6,6 +6,7 @@
 #include "uv.h"
 #include "pure.h"
 #include "util.h"
+#include "pure_options.h"
 
 namespace pure
 {
@@ -97,14 +98,16 @@ namespace pure
 
         inline bool is_stopping() const;
         inline void set_stopping(bool value);
+        inline bool is_main_thread() const;
+
+        inline bool abort_on_uncaught_exception() const;
+
         bool started_cleanup_ = false;
 
         inline bool has_run_bootstrapping_code() const;
         inline void DoneBootstrapping();
         // v8::MaybeLocal<v8::Value> BootstrapNode();
         Maybe<bool> BootstrapPure();
-
-        v8::MaybeLocal<v8::Value> BootstrapInternalLoaders();
 
         struct ContextInfo
         {
@@ -179,6 +182,8 @@ namespace pure
 
         uint64_t flags_;
         uint64_t thread_id_;
+
+        std::shared_ptr<EnvironmentOptions> options_;
 
         // AliasedUint32Array should_abort_on_uncaught_toggle_;
         // int should_not_abort_scope_counter_ = 0;

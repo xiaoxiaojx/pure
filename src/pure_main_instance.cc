@@ -76,11 +76,11 @@ namespace pure
           Isolate::MessageErrorLevel::kMessageError |
               Isolate::MessageErrorLevel::kMessageWarning);
 
-    // auto *abort_callback = s.should_abort_on_uncaught_exception_callback ? s.should_abort_on_uncaught_exception_callback : ShouldAbortOnUncaughtException;
-    // isolate->SetAbortOnUncaughtExceptionCallback(abort_callback);
+    auto *abort_callback = s.should_abort_on_uncaught_exception_callback ? s.should_abort_on_uncaught_exception_callback : ShouldAbortOnUncaughtException;
+    isolate->SetAbortOnUncaughtExceptionCallback(abort_callback);
 
-    // auto *fatal_error_cb = s.fatal_error_callback ? s.fatal_error_callback : OnFatalError;
-    // isolate->SetFatalErrorHandler(fatal_error_cb);
+    auto *fatal_error_cb = s.fatal_error_callback ? s.fatal_error_callback : pure::errors::OnFatalError;
+    isolate->SetFatalErrorHandler(fatal_error_cb);
 
     // if ((s.flags & SHOULD_NOT_SET_PREPARE_STACK_TRACE_CALLBACK) == 0)
     // {

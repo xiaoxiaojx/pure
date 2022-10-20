@@ -9,6 +9,9 @@ namespace pure
     {
         void PerIsolateMessageListener(v8::Local<v8::Message> message,
                                        v8::Local<v8::Value> error);
+
+        void OnFatalError(const char *location, const char *message);
+
     }
 }
 

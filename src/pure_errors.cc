@@ -1,7 +1,8 @@
 #include "v8.h"
 #include "env-inl.h"
 #include "env.h"
-
+#include "pure_mutex.h"
+#include "pure_options.h"
 #include "util.h"
 
 #include <sstream>
@@ -50,6 +51,40 @@ namespace pure
                 // TriggerUncaughtException(isolate, error, message);
                 break;
             }
+        }
+
+        void OnFatalError(const char *location, const char *message)
+        {
+            // if (location)
+            //  {
+            //      FPrintF(stderr, "FATAL ERROR: %s %s\n", location, message);
+            //  }
+            //  else
+            //  {
+            //      FPrintF(stderr, "FATAL ERROR: %s\n", message);
+            //  }
+
+            Isolate *isolate = Isolate::TryGetCurrent();
+            Environment *env = nullptr;
+            if (isolate != nullptr)
+            {
+                env = Environment::GetCurrent(isolate);
+            }
+            bool report_on_fatalerror;
+            {
+                Mutex::ScopedLock lock(pure::per_process::cli_options_mutex);
+                report_on_fatalerror = per_process::cli_options->report_on_fatalerror;
+            }
+
+            if (report_on_fatalerror)
+            {
+                // TODO
+                // report::TriggerNodeReport(
+                //     isolate, env, message, "FatalError", "", Local<Object>());
+            }
+
+            fflush(stderr);
+            abort();
         }
 
     }

@@ -91,7 +91,6 @@ namespace pure
         per_process::v8_initialized = false;
         V8::Dispose();
         per_process::v8_platform.reset();
-        // platform.Dispose();
     }
 
     MaybeLocal<Value> ExecuteBootstrapper(Environment *env,
@@ -137,8 +136,6 @@ namespace pure
         }
 
         TearDownOncePerProcess();
-
-        // std::cout << "Pure > Start End!\n";
 
         return result.exit_code;
     }
