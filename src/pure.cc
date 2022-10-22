@@ -1,5 +1,3 @@
-//
-//
 //  ________  ___  ___  ________  _______
 // |\   __  \|\  \|\  \|\   __  \|\  ___ \     
 // \ \  \|\  \ \  \\\  \ \  \|\  \ \   __/|
@@ -7,9 +5,17 @@
 //   \ \  \___|\ \  \\\  \ \  \\  \\ \  \_|\ \ 
 //    \ \__\    \ \_______\ \__\\ _\\ \_______\
 //     \|__|     \|_______|\|__|\|__|\|_______|
-//
-//
-//
+
+/**
+ * @file pure.cc
+ * @author xiaoxiaojx (784487301@qq.com)
+ * @brief pure
+ * @version 0.1
+ * @date 2022-10-15
+ *
+ * @copyright Copyright (c) 2022
+ *
+ */
 
 #include <iostream>
 
@@ -100,7 +106,7 @@ namespace pure
     {
         EscapableHandleScope scope(env->isolate());
         MaybeLocal<Function> maybe_fn =
-            native_module::LookupAndCompile(env->context(), id, parameters, env);
+            native_module::NativeModuleLoader::GetInstance()->LookupAndCompile(env->context(), id, parameters, env);
 
         Local<Function> fn;
         if (!maybe_fn.ToLocal(&fn))

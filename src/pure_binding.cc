@@ -6,7 +6,7 @@
 #include "util-inl.h"
 
 #define PURE_BUILTIN_STANDARD_MODULES(V) \
-    V(console)
+    V(addon_console)
 
 #define PURE_BUILTIN_MODULES(V) \
     PURE_BUILTIN_STANDARD_MODULES(V)

@@ -1,13 +1,13 @@
-//                              Pure Addon
-//
-//  ________  ________  ________   ________  ________  ___       _______
-// |\   ____\|\   __  \|\   ___  \|\   ____\|\   __  \|\  \     |\  ___ \     
-// \ \  \___|\ \  \|\  \ \  \\ \  \ \  \___|\ \  \|\  \ \  \    \ \   __/|
-//  \ \  \    \ \  \\\  \ \  \\ \  \ \_____  \ \  \\\  \ \  \    \ \  \_|/__
-//   \ \  \____\ \  \\\  \ \  \\ \  \|____|\  \ \  \\\  \ \  \____\ \  \_|\ \ 
-//    \ \_______\ \_______\ \__\\ \__\____\_\  \ \_______\ \_______\ \_______\
-//     \|_______|\|_______|\|__| \|__|\_________\|_______|\|_______|\|_______|
-//                                   \|_________|
+/**
+ * @file addon_console.cc
+ * @author xiaoxiaojx (784487301@qq.com)
+ * @brief 为 JavaScript 提供向标准输出写入数据能力的 binding
+ * @version 0.1
+ * @date 2022-10-22
+ *
+ * @copyright Copyright (c) 2022
+ *
+ */
 
 #include "v8.h"
 #include "env-inl.h"
@@ -18,7 +18,7 @@
 
 namespace pure
 {
-    namespace console
+    namespace addon_console
     {
         using v8::Context;
         using v8::EscapableHandleScope;
@@ -32,7 +32,7 @@ namespace pure
 
         // 未加 static 修饰的函数和全局变量具有全局可见性，其他的源文件也能够访问
         // static 修饰函数和变量这一特性可以在不同的文件中定义同名函数和同名变量，而不必担心命名冲突
-        static void Log(const FunctionCallbackInfo<Value> &args)
+        static void Write(const FunctionCallbackInfo<Value> &args)
         {
             v8::Local<v8::Context> context = args.GetIsolate()->GetCurrentContext();
 
@@ -61,13 +61,10 @@ namespace pure
                         void *priv)
         {
             Environment *env = Environment::GetCurrent(context);
-            env->SetMethod(target, "log", Log);
-            env->SetMethod(target, "info", Log);
-            env->SetMethod(target, "warn", Log);
-            env->SetMethod(target, "error", Log);
+            env->SetMethod(target, "write", Write);
         }
     }
 }
 
 // Pure Addon Register
-PURE_MODULE_CONTEXT_AWARE_INTERNAL(console, pure::console::Initialize);
+PURE_MODULE_CONTEXT_AWARE_INTERNAL(addon_console, pure::addon_console::Initialize);

@@ -11,6 +11,17 @@
 //
 //
 
+/**
+ * @file pure_main.cc
+ * @author xiaoxiaojx (784487301@qq.com)
+ * @brief pure
+ * @version 0.1
+ * @date 2022-10-15
+ *
+ * @copyright Copyright (c) 2022
+ *
+ */
+
 #include <cstdio>
 #include "pure.h"
 

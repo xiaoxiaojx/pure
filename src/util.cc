@@ -16,13 +16,9 @@ namespace pure
 
     template <typename T>
     static void MakeUtf8String(Isolate *isolate,
-                               Local<Value> value,
+                               Local<String> string,
                                MaybeStackBuffer<T> *target)
     {
-        Local<String> string;
-        if (!value->ToString(isolate->GetCurrentContext()).ToLocal(&string))
-            return;
-
         size_t storage;
         // TODO
         // if (!StringBytes::StorageSize(isolate, string, UTF8).To(&storage))
@@ -36,7 +32,27 @@ namespace pure
         target->SetLengthAndZeroTerminate(length);
     }
 
+    template <typename T>
+    static void MakeUtf8String(Isolate *isolate,
+                               Local<Value> value,
+                               MaybeStackBuffer<T> *target)
+    {
+        Local<String> string;
+        if (!value->ToString(isolate->GetCurrentContext()).ToLocal(&string))
+            return;
+
+        MakeUtf8String(isolate, string, target);
+    }
+
     Utf8Value::Utf8Value(Isolate *isolate, Local<Value> value)
+    {
+        if (value.IsEmpty())
+            return;
+
+        MakeUtf8String(isolate, value, this);
+    }
+
+    Utf8Value::Utf8Value(Isolate *isolate, Local<String> value)
     {
         if (value.IsEmpty())
             return;

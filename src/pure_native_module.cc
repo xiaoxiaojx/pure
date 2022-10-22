@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <iostream>
+#include <string.h>
 
 #include "env-inl.h"
 #include "util-inl.h"
@@ -67,9 +68,36 @@ namespace pure
 
     namespace native_module
     {
+        NativeModuleLoader NativeModuleLoader::instance_;
 
-        MaybeLocal<String> LoadBuiltinModuleSource(Isolate *isolate,
-                                                   const char *id)
+        NativeModuleLoader::NativeModuleLoader()
+        {
+            LoadJavaScriptSource();
+        }
+
+        NativeModuleLoader *NativeModuleLoader::GetInstance()
+        {
+            return &instance_;
+        }
+
+        MaybeLocal<String> NativeModuleLoader::LoadBuiltinModuleSource(Isolate *isolate,
+                                                                       const char *id)
+        {
+            std::string filename = std::string(id);
+
+            const auto source_it = source_.find(filename);
+
+            if (UNLIKELY(source_it == source_.end()))
+            {
+                fprintf(stderr, "Cannot find native builtin: \"%s\".\n", id);
+                abort();
+            }
+
+            return source_it->second.ToStringChecked(isolate);
+        }
+
+        MaybeLocal<String> NativeModuleLoader::LoadUserModuleSource(Isolate *isolate,
+                                                                    const char *id)
         {
             std::string filename = std::string(id);
 
@@ -95,7 +123,7 @@ namespace pure
         // Returns Local<Function> of the compiled module if return_code_cache
         // is false (we are only compiling the function).
         // Otherwise return a Local<Object> containing the cache.
-        MaybeLocal<Function> LookupAndCompile(
+        MaybeLocal<Function> NativeModuleLoader::LookupAndCompile(
             Local<Context> context,
             const char *id,
             std::vector<Local<String>> *parameters,
@@ -103,16 +131,29 @@ namespace pure
         {
             Isolate *isolate = context->GetIsolate();
             EscapableHandleScope scope(isolate);
-
             Local<String> source;
-            if (!LoadBuiltinModuleSource(isolate, id).ToLocal(&source))
+
+            if (strncmp(id, "pure:", strlen("pure:")) == 0)
             {
-                std::cout << "LoadBuiltinModuleSource failed."
+                if (!LoadBuiltinModuleSource(isolate, id).ToLocal(&source))
+                {
+                    std::cout << "LoadBuiltinModuleSource failed."
+                              << "\n";
+                    return {};
+                }
+
+                // DEBUG
+                // pure::Utf8Value source2(isolate, source);
+                // std::cout << *source2 << 'end\n';
+            }
+            else if (!LoadUserModuleSource(isolate, id).ToLocal(&source))
+            {
+                std::cout << "LoadUserModuleSource failed."
                           << "\n";
                 return {};
             }
 
-            std::string filename_s = std::string("node:") + id;
+            std::string filename_s = std::string("pure:") + id;
             Local<String> filename =
                 OneByteString(isolate, filename_s.c_str(), filename_s.size());
             ScriptOrigin origin(isolate, filename, 0, 0, true);

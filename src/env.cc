@@ -380,10 +380,10 @@ namespace pure
         HandleScope scope(isolate_);
         // 好吧, 我只想保持和 JavaScript 中相同的用法
         // 虽然在 C 中完全没必要这样绕个弯子来引模块
-        // GetInternalBinding(this, "console") = require("console")
-        Local<Object> consoleObj = binding::GetInternalBinding(this, "console").ToLocalChecked();
+        // GetInternalBinding(this, "addon_console") = require("addon_console")
+        Local<Object> __pure_stdout = binding::GetInternalBinding(this, "addon_console").ToLocalChecked();
         Local<Object> global = context()->Global();
-        global->Set(context(), FIXED_ONE_BYTE_STRING(isolate_, "console"), consoleObj);
+        global->Set(context(), FIXED_ONE_BYTE_STRING(isolate_, "__pure_stdout"), __pure_stdout);
         global->Set(context(), FIXED_ONE_BYTE_STRING(isolate_, "global"), global).Check();
         return Just(true);
     }
@@ -395,8 +395,13 @@ namespace pure
         std::vector<Local<String>> loaders_params = {};
         std::vector<Local<Value>> loaders_args = {};
 
+        // 注入 addon
         BootstrapPure();
 
+        // 运行 lib
+        ExecuteBootstrapper(this, "pure:console", &loaders_params, &loaders_args);
+
+        // 运行 user
         ExecuteBootstrapper(this, argv_.front().c_str(), &loaders_params, &loaders_args);
     }
 }
