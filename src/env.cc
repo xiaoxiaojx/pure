@@ -404,4 +404,13 @@ namespace pure
         // 运行 user
         ExecuteBootstrapper(this, argv_.front().c_str(), &loaders_params, &loaders_args);
     }
+
+    void Environment::ExitEnv()
+    {
+        set_can_call_into_js(false);
+        set_stopping(true);
+        isolate_->TerminateExecution();
+        SetImmediateThreadsafe([](Environment *env)
+                               { uv_stop(env->event_loop()); },  CallbackFlags::kRefed);
+    }
 }

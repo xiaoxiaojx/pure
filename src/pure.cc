@@ -145,4 +145,10 @@ namespace pure
 
         return result.exit_code;
     }
+
+    int Stop(Environment *env)
+    {
+        env->ExitEnv();
+        return 0;
+    }
 }

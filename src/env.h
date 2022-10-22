@@ -7,6 +7,8 @@
 #include "pure.h"
 #include "util.h"
 #include "pure_options.h"
+#include "pure_mutex.h"
+#include "callback_queue.h"
 
 namespace pure
 {
@@ -86,6 +88,8 @@ namespace pure
 
         void CleanupHandles();
         void RunCleanup();
+        void ExitEnv();
+
         void AtExit(void (*cb)(void *arg), void *arg);
         void RunAtExitCallbacks();
 
@@ -100,6 +104,9 @@ namespace pure
         inline void set_stopping(bool value);
         inline bool is_main_thread() const;
 
+        inline bool can_call_into_js() const;
+        inline void set_can_call_into_js(bool can_call_into_js);
+
         inline bool abort_on_uncaught_exception() const;
 
         bool started_cleanup_ = false;
@@ -108,6 +115,11 @@ namespace pure
         inline void DoneBootstrapping();
         // v8::MaybeLocal<v8::Value> BootstrapNode();
         Maybe<bool> BootstrapPure();
+
+        template <typename Fn>
+        // This behaves like SetImmediate() but can be called from any thread.
+        inline void SetImmediateThreadsafe(
+            Fn &&cb, CallbackFlags::Flags flags);
 
         struct ContextInfo
         {
@@ -170,6 +182,7 @@ namespace pure
         bool emit_err_name_warning_ = true;
         bool emit_filehandle_warning_ = true;
         bool source_maps_enabled_ = false;
+        std::atomic_bool can_call_into_js_{true};
 
         size_t async_callback_scope_depth_ = 0;
         std::vector<double> destroy_async_id_list_;
@@ -184,6 +197,13 @@ namespace pure
         uint64_t thread_id_;
 
         std::shared_ptr<EnvironmentOptions> options_;
+
+        typedef CallbackQueue<void, Environment *> NativeImmediateQueue;
+        Mutex native_immediates_threadsafe_mutex_;
+        NativeImmediateQueue native_immediates_threadsafe_;
+        NativeImmediateQueue native_immediates_interrupts_;
+
+        bool task_queues_async_initialized_ = false;
 
         // AliasedUint32Array should_abort_on_uncaught_toggle_;
         // int should_not_abort_scope_counter_ = 0;

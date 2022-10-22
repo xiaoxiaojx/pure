@@ -4,6 +4,8 @@
 #include "util.h"
 #include "env.h"
 #include "v8.h"
+#include "uv.h"
+#include "callback_queue-inl.h"
 
 namespace pure
 {
@@ -114,6 +116,16 @@ namespace pure
         return isolate_;
     }
 
+    inline bool Environment::can_call_into_js() const
+    {
+        return can_call_into_js_ && !is_stopping();
+    }
+
+    inline void Environment::set_can_call_into_js(bool can_call_into_js)
+    {
+        can_call_into_js_ = can_call_into_js;
+    }
+
     inline bool Environment::is_main_thread() const
     {
         // TODO 暂时不支持线程
@@ -154,6 +166,20 @@ namespace pure
                                          behavior,
                                          side_effect_type,
                                          c_function);
+    }
+
+    template <typename Fn>
+    void Environment::SetImmediateThreadsafe(Fn &&cb, CallbackFlags::Flags flags)
+    {
+        auto callback = native_immediates_threadsafe_.CreateCallback(
+            std::move(cb), flags);
+
+        {
+            Mutex::ScopedLock lock(native_immediates_threadsafe_mutex_);
+            native_immediates_threadsafe_.Push(std::move(callback));
+            if (task_queues_async_initialized_)
+                uv_async_send(&task_queues_async_);
+        }
     }
 
     inline void Environment::SetMethod(v8::Local<v8::Object> that,

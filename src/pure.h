@@ -59,8 +59,11 @@ namespace pure
 #ifndef NODE_BINDING_LIST
 #define NODE_BINDING_LIST_INDEX 36
 #endif
+    class Environment;
 
     PURE_EXTERN int Start(int argc, char *argv[]);
+
+    PURE_EXTERN int Stop(Environment *env);
 
     PURE_EXTERN bool ShouldAbortOnUncaughtException(v8::Isolate *isolate);
 
