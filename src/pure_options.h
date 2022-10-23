@@ -31,6 +31,7 @@ class EnvironmentOptions : public Options {
   bool abort_on_uncaught_exception = false;
 
   std::vector<std::string> user_argv;
+  bool pending_deprecation = false;
 
   void CheckOptions(std::vector<std::string>* errors) override;
 };
@@ -75,9 +76,18 @@ class PerProcessOptions : public Options {
   bool print_help = false;
   bool print_v8_help = false;
   bool print_version = false;
+  std::vector<std::string> cmdline;
+
   inline PerIsolateOptions* get_per_isolate_options();
   void CheckOptions(std::vector<std::string>* errors) override;
 };
+
+void HandleEnvOptions(std::shared_ptr<EnvironmentOptions> env_options);
+void HandleEnvOptions(std::shared_ptr<EnvironmentOptions> env_options,
+                      std::function<std::string(const char*)> opt_getter);
+
+std::vector<std::string> ParseNodeOptionsEnvVar(
+    const std::string& node_options, std::vector<std::string>* errors);
 }  // namespace pure
 
 #endif  // SRC_PURE_OPTIONS_H_

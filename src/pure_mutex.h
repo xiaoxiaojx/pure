@@ -20,6 +20,11 @@ using ConditionVariable = ConditionVariableBase<LibuvMutexTraits>;
 using Mutex = MutexBase<LibuvMutexTraits>;
 using RwLock = MutexBase<LibuvRwlockTraits>;
 
+namespace per_process {
+extern Mutex env_var_mutex;
+extern uint64_t pure_start_time;
+}  // namespace per_process
+
 template <typename T, typename MutexT = Mutex>
 class ExclusiveAccess {
  public:

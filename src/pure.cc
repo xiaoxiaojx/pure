@@ -25,8 +25,6 @@
 
 #include "util.h"
 
-#include "pure_native_module.h"
-
 #include "libplatform/libplatform.h"
 
 #include "pure_binding.h"
@@ -50,7 +48,13 @@ namespace per_process {
 bool v8_initialized = false;
 
 std::unique_ptr<v8::Platform> v8_platform;
+
+// 记录下 pure 启动的时间
+uint64_t pure_start_time;
 }  // namespace per_process
+
+static std::atomic_bool init_called{false};
+
 // Safe to call more than once and from signal handlers.
 void ResetStdio() {
   // uv_tty_reset_mode
@@ -61,58 +65,115 @@ void ResetStdio() {
   uv_tty_reset_mode();
 }
 
+int InitializePureWithArgs(std::vector<std::string>* argv,
+                           std::vector<std::string>* exec_argv,
+                           std::vector<std::string>* errors,
+                           ProcessFlags::Flags flags) {
+  // Make sure InitializePureWithArgs() is called only once.
+  CHECK(!init_called.exchange(true));
+
+  // Initialize pure_start_time to get relative uptime.
+  per_process::pure_start_time = uv_hrtime();
+
+  // Register built-in modules
+  binding::RegisterBuiltinModules();
+
+  // Make inherited handles noninheritable.
+  if (!(flags & ProcessFlags::kEnableStdioInheritance))
+    uv_disable_stdio_inheritance();
+
+  // Cache the original command line to be
+  // used in diagnostic reports.
+  per_process::cli_options->cmdline = *argv;
+
+  HandleEnvOptions(per_process::cli_options->per_isolate->per_env);
+
+  if (!(flags & ProcessFlags::kDisableNodeOptionsEnv)) {
+    std::string pure_options;
+
+    if (credentials::SafeGetenv("PURE_OPTIONS", &pure_options)) {
+      std::vector<std::string> env_argv =
+          ParseNodeOptionsEnvVar(pure_options, errors);
+
+      if (!errors->empty()) return 9;
+
+      // [0] is expected to be the program name, fill it in from the real argv.
+      env_argv.insert(env_argv.begin(), argv->at(0));
+
+      //   const int exit_code =
+      //       ProcessGlobalArgs(&env_argv, nullptr, errors,
+      //       kAllowedInEnvironment);
+      //   if (exit_code != 0) return exit_code;
+    }
+  }
+
+  //   if (!(flags & ProcessFlags::kDisableCLIOptions)) {
+  //     const int exit_code =
+  //         ProcessGlobalArgs(argv, exec_argv, errors,
+  //         kDisallowedInEnvironment);
+  //     if (exit_code != 0) return exit_code;
+  //   }
+
+  // Set the process.title immediately after processing argv if --title is set.
+  if (!per_process::cli_options->title.empty())
+    uv_set_process_title(per_process::cli_options->title.c_str());
+
+  // We should set pure_is_initialized here instead of in node::Start,
+  // otherwise embedders using node::Init to initialize everything will not be
+  // able to set it and native modules will not load for them.
+  pure_is_initialized = true;
+  return 0;
+}
+
 InitializationResult InitializeOncePerProcess(
-    int argc, char** argv, InitializationSettingsFlags flags) {
+    int argc,
+    char** argv,
+    InitializationSettingsFlags flags,
+    ProcessFlags::Flags process_flags) {
   InitializationResult result;
 
   // atexit 类似于 Node.js process.on("exit", fn)
   atexit(ResetStdio);
 
-  binding::RegisterBuiltinModules();
+  CHECK_GT(argc, 0);
+
+  // uv_setup_args https://docs.libuv.org/en/v1.x/misc.html#c.uv_setup_args
+  // 存储程序参数。获取/设置进程标题或可执行路径所必需的。 Libuv 可能会取得 argv
+  // 指向的内存的所有权。此函数应在程序启动时仅调用一次。
+  argv = uv_setup_args(argc, argv);
+
+  result.args = std::vector<std::string>(argv, argv + argc);
+  std::vector<std::string> errors;
+
+  // This needs to run *before* V8::Initialize().
+  {
+    result.exit_code = InitializePureWithArgs(
+        &(result.args), &(result.exec_args), &errors, process_flags);
+    for (const std::string& error : errors)
+      fprintf(stderr, "%s: %s\n", result.args.at(0).c_str(), error.c_str());
+    if (result.exit_code != 0) {
+      result.early_return = true;
+      return result;
+    }
+  }
 
   per_process::v8_platform = v8::platform::NewDefaultPlatform();
 
   V8::InitializePlatform(per_process::v8_platform.get());
 
   V8::Initialize();
-
-  // TODO
-
-  result.args = std::vector<std::string>{std::string(argv[1])};
-
   return result;
 }
 
 InitializationResult InitializeOncePerProcess(int argc, char** argv) {
-  return InitializeOncePerProcess(argc, argv, kDefaultInitialization);
+  return InitializeOncePerProcess(
+      argc, argv, kDefaultInitialization, ProcessFlags::Flags::kNoFlags);
 }
 
 void TearDownOncePerProcess() {
   per_process::v8_initialized = false;
   V8::Dispose();
   per_process::v8_platform.reset();
-}
-
-MaybeLocal<Value> ExecuteBootstrapper(Environment* env,
-                                      const char* id,
-                                      std::vector<Local<String>>* parameters,
-                                      std::vector<Local<Value>>* arguments) {
-  EscapableHandleScope scope(env->isolate());
-  MaybeLocal<Function> maybe_fn =
-      native_module::NativeModuleLoader::GetInstance()->LookupAndCompile(
-          env->context(), id, parameters, env);
-
-  Local<Function> fn;
-  if (!maybe_fn.ToLocal(&fn)) {
-    return MaybeLocal<Value>();
-  }
-
-  MaybeLocal<Value> result = fn->Call(env->context(),
-                                      Undefined(env->isolate()),
-                                      arguments->size(),
-                                      arguments->data());
-
-  return scope.EscapeMaybe(result);
 }
 
 int Start(int argc, char** argv) {

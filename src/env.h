@@ -2,6 +2,7 @@
 #define SRC_ENV_H_
 
 #include <vector>
+#include "aliased_buffer.h"
 #include "callback_queue.h"
 #include "pure.h"
 #include "pure_mutex.h"
@@ -11,6 +12,9 @@
 #include "v8.h"
 
 namespace pure {
+
+#define ENVIRONMENT_STRONG_PERSISTENT_VALUES(V)                                \
+  V(immediate_callback_function, v8::Function)
 
 #define ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)                             \
   V(binding_data_ctor_template, v8::FunctionTemplate)
@@ -33,6 +37,59 @@ class IsolateData;
 
 struct EnvSerializeInfo {
   // TODO
+};
+
+class ImmediateInfo {
+ public:
+  inline AliasedUint32Array& fields();
+  inline uint32_t count() const;
+  inline uint32_t ref_count() const;
+  inline bool has_outstanding() const;
+  inline void ref_count_inc(uint32_t increment);
+  inline void ref_count_dec(uint32_t decrement);
+
+  ImmediateInfo(const ImmediateInfo&) = delete;
+  ImmediateInfo& operator=(const ImmediateInfo&) = delete;
+  ImmediateInfo(ImmediateInfo&&) = delete;
+  ImmediateInfo& operator=(ImmediateInfo&&) = delete;
+  ~ImmediateInfo() = default;
+  //   ImmediateInfo(v8::Isolate* isolate);
+
+ private:
+  friend class Environment;  // So we can call the constructor.
+  explicit ImmediateInfo(v8::Isolate* isolate);
+
+  enum Fields { kCount, kRefCount, kHasOutstanding, kFieldsCount };
+
+  AliasedUint32Array fields_;
+};
+
+class KVStore {
+ public:
+  KVStore() = default;
+  virtual ~KVStore() = default;
+  KVStore(const KVStore&) = delete;
+  KVStore& operator=(const KVStore&) = delete;
+  KVStore(KVStore&&) = delete;
+  KVStore& operator=(KVStore&&) = delete;
+
+  virtual v8::MaybeLocal<v8::String> Get(v8::Isolate* isolate,
+                                         v8::Local<v8::String> key) const = 0;
+  virtual v8::Maybe<std::string> Get(const char* key) const = 0;
+  virtual void Set(v8::Isolate* isolate,
+                   v8::Local<v8::String> key,
+                   v8::Local<v8::String> value) = 0;
+  virtual int32_t Query(v8::Isolate* isolate,
+                        v8::Local<v8::String> key) const = 0;
+  virtual int32_t Query(const char* key) const = 0;
+  virtual void Delete(v8::Isolate* isolate, v8::Local<v8::String> key) = 0;
+  virtual v8::Local<v8::Array> Enumerate(v8::Isolate* isolate) const = 0;
+
+  virtual std::shared_ptr<KVStore> Clone(v8::Isolate* isolate) const;
+  virtual v8::Maybe<bool> AssignFromObject(v8::Local<v8::Context> context,
+                                           v8::Local<v8::Object> entries);
+
+  static std::shared_ptr<KVStore> CreateMapKVStore();
 };
 
 class Environment {
@@ -123,9 +180,18 @@ class Environment {
   inline void DoneBootstrapping();
   // v8::MaybeLocal<v8::Value> BootstrapNode();
   Maybe<bool> BootstrapPure();
-  //   inline ImmediateInfo* immediate_info();
+  inline ImmediateInfo* immediate_info();
+  inline std::shared_ptr<EnvironmentOptions> options();
+  inline std::shared_ptr<KVStore> env_vars();
+  inline void set_env_vars(std::shared_ptr<KVStore> env_vars);
 
   void InitializeLibuv();
+
+  inline bool EmitProcessEnvWarning() {
+    bool current_value = emit_env_nonstring_warning_;
+    emit_env_nonstring_warning_ = false;
+    return current_value;
+  }
 
   template <typename Fn>
   // This behaves like SetImmediate() but can be called from any thread.
@@ -159,14 +225,17 @@ class Environment {
 #define V(PropertyName, TypeName)                                              \
   inline v8::Local<TypeName> PropertyName() const;                             \
   inline void set_##PropertyName(v8::Local<TypeName> value);
+  ENVIRONMENT_STRONG_PERSISTENT_VALUES(V)
   ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)
 #undef V
 
  private:
 #define V(PropertyName, TypeName) v8::Global<TypeName> PropertyName##_;
+  ENVIRONMENT_STRONG_PERSISTENT_VALUES(V)
   ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)
 #undef V
   v8::Global<v8::Context> context_;
+  std::shared_ptr<KVStore> env_vars_;
 
   static void* const kNodeContextTagPtr;
   static int const kNodeContextTag;
@@ -182,7 +251,7 @@ class Environment {
   int64_t task_queues_async_refs_ = 0;
   bool has_run_bootstrapping_code_ = false;
 
-  //   ImmediateInfo immediate_info_;
+  ImmediateInfo immediate_info_;
   // TickInfo tick_info_;
   const uint64_t timer_base_;
   // std::shared_ptr<KVStore> env_vars_;
@@ -200,13 +269,12 @@ class Environment {
   std::vector<std::string> exec_argv_;
   std::vector<std::string> argv_;
   std::string exec_path_;
+  std::shared_ptr<EnvironmentOptions> options_;
 
   uint64_t environment_start_time_;
 
   uint64_t flags_;
   uint64_t thread_id_;
-
-  std::shared_ptr<EnvironmentOptions> options_;
 
   typedef CallbackQueue<void, Environment*> NativeImmediateQueue;
   Mutex native_immediates_threadsafe_mutex_;

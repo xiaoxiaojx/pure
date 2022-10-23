@@ -133,13 +133,6 @@ PureMainInstance::CreateMainEnvironment(int* exit_code) {
 
   HandleScope handle_scope(isolate_);
 
-  // TODO(addaleax): This should load a real per-Isolate option, currently
-  // this is still effectively per-process.
-  // if (isolate_data_->options()->track_heap_objects)
-  // {
-  //   isolate_->GetHeapProfiler()->StartTrackingHeapObjects(true);
-  // }
-
   Local<Context> context;
   DeleteFnPtr<Environment, FreeEnvironment> env;
 

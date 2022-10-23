@@ -14,6 +14,9 @@ PURE_BUILTIN_MODULES(V)
 #undef V
 
 namespace pure {
+// This is set by node::Init() which is used by embedders
+bool pure_is_initialized = false;
+
 namespace binding {
 using v8::Context;
 using v8::EscapableHandleScope;
@@ -31,9 +34,6 @@ static pure_module* modlist_internal;
 static pure_module* modlist_linked;
 static thread_local pure_module* thread_local_modpending;
 
-// This is set by node::Init() which is used by embedders
-bool node_is_initialized = false;
-
 // TODO
 extern "C" void pure_module_register(void* m)
 // void pure_module_register(void *m)
@@ -43,7 +43,7 @@ extern "C" void pure_module_register(void* m)
   if (mp->nm_flags & NM_F_INTERNAL) {
     mp->nm_link = modlist_internal;
     modlist_internal = mp;
-  } else if (!node_is_initialized) {
+  } else if (!pure_is_initialized) {
     // "Linked" modules are included as part of the node project.
     // Like builtins they are registered *before* node::Init runs.
     mp->nm_flags = NM_F_LINKED;

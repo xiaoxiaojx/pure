@@ -59,11 +59,32 @@ namespace pure {
 #ifndef NODE_BINDING_LIST
 #define NODE_BINDING_LIST_INDEX 36
 #endif
+
 class Environment;
+class InternalCallbackScope;
+
+namespace ProcessFlags {
+enum Flags : uint64_t {
+  kNoFlags = 0,
+  // Enable stdio inheritance, which is disabled by default.
+  kEnableStdioInheritance = 1 << 0,
+  // Disable reading the NODE_OPTIONS environment variable.
+  kDisableNodeOptionsEnv = 1 << 1,
+  // Do not parse CLI options.
+  kDisableCLIOptions = 1 << 2,
+  // Do not initialize ICU.
+  kNoICU = 1 << 3,
+};
+}  // namespace ProcessFlags
 
 PURE_EXTERN int Start(int argc, char* argv[]);
 
 PURE_EXTERN int Stop(Environment* env);
+
+PURE_EXTERN int InitializePureWithArgs(std::vector<std::string>* argv,
+                                       std::vector<std::string>* exec_argv,
+                                       std::vector<std::string>* errors,
+                                       ProcessFlags::Flags flags);
 
 PURE_EXTERN bool ShouldAbortOnUncaughtException(v8::Isolate* isolate);
 
@@ -106,19 +127,9 @@ enum InitializationSettingsFlags : uint64_t {
   kInitOpenSSL = 1 << 3
 };
 
-namespace ProcessFlags {
-enum Flags : uint64_t {
-  kNoFlags = 0,
-  // Enable stdio inheritance, which is disabled by default.
-  kEnableStdioInheritance = 1 << 0,
-  // Disable reading the NODE_OPTIONS environment variable.
-  kDisableNodeOptionsEnv = 1 << 1,
-  // Do not parse CLI options.
-  kDisableCLIOptions = 1 << 2,
-  // Do not initialize ICU.
-  kNoICU = 1 << 3,
-};
-}  // namespace ProcessFlags
+namespace credentials {
+bool SafeGetenv(const char* key, std::string* text, Environment* env = nullptr);
+}  // namespace credentials
 
 class PURE_EXTERN IsolatePlatformDelegate {
  public:
@@ -220,8 +231,119 @@ struct StartExecutionCallbackInfo {
 using StartExecutionCallback =
     std::function<v8::MaybeLocal<v8::Value>(const StartExecutionCallbackInfo&)>;
 
+v8::MaybeLocal<v8::Value> StartExecution(Environment*, StartExecutionCallback);
+
 PURE_EXTERN v8::MaybeLocal<v8::Value> LoadEnvironment(
     Environment* env, StartExecutionCallback cb);
+
+class InternalCallbackScope;
+
+/* This class works like `MakeCallback()` in that it sets up a specific
+ * asyncContext as the current one and informs the async_hooks and domains
+ * modules that this context is currently active.
+ *
+ * `MakeCallback()` is a wrapper around this class as well as
+ * `Function::Call()`. Either one of these mechanisms needs to be used for
+ * top-level calls into JavaScript (i.e. without any existing JS stack).
+ *
+ * This object should be stack-allocated to ensure that it is contained in a
+ * valid HandleScope.
+ *
+ * Exceptions happening within this scope will be treated like uncaught
+ * exceptions. If this behaviour is undesirable, a new `v8::TryCatch` scope
+ * needs to be created inside of this scope.
+ */
+class PURE_EXTERN CallbackScope {
+ public:
+  CallbackScope(v8::Isolate* isolate, v8::Local<v8::Object> resource);
+  CallbackScope(Environment* env, v8::Local<v8::Object> resource);
+  ~CallbackScope();
+
+  void operator=(const CallbackScope&) = delete;
+  void operator=(CallbackScope&&) = delete;
+  CallbackScope(const CallbackScope&) = delete;
+  CallbackScope(CallbackScope&&) = delete;
+
+ private:
+  InternalCallbackScope* private_;
+  v8::TryCatch try_catch_;
+};
+
+/* An API specific to emit before/after callbacks is unnecessary because
+ * MakeCallback will automatically call them for you.
+ *
+ * These methods may create handles on their own, so run them inside a
+ * HandleScope.
+ *
+ * `asyncId` and `triggerAsyncId` should correspond to the values returned by
+ * `EmitAsyncInit()` and `AsyncHooksGetTriggerAsyncId()`, respectively, when the
+ * invoking resource was created. If these values are unknown, 0 can be passed.
+ * */
+PURE_EXTERN
+v8::MaybeLocal<v8::Value> MakeCallback(v8::Isolate* isolate,
+                                       v8::Local<v8::Object> recv,
+                                       v8::Local<v8::Function> callback,
+                                       int argc,
+                                       v8::Local<v8::Value>* argv);
+PURE_EXTERN
+v8::MaybeLocal<v8::Value> MakeCallback(v8::Isolate* isolate,
+                                       v8::Local<v8::Object> recv,
+                                       const char* method,
+                                       int argc,
+                                       v8::Local<v8::Value>* argv);
+PURE_EXTERN
+v8::MaybeLocal<v8::Value> MakeCallback(v8::Isolate* isolate,
+                                       v8::Local<v8::Object> recv,
+                                       v8::Local<v8::String> symbol,
+                                       int argc,
+                                       v8::Local<v8::Value>* argv);
+
+v8::MaybeLocal<v8::Value> InternalMakeCallback(
+    Environment* env,
+    v8::Local<v8::Object> resource,
+    v8::Local<v8::Object> recv,
+    const v8::Local<v8::Function> callback,
+    int argc,
+    v8::Local<v8::Value> argv[]);
+
+v8::MaybeLocal<v8::Value> MakeSyncCallback(v8::Isolate* isolate,
+                                           v8::Local<v8::Object> recv,
+                                           v8::Local<v8::Function> callback,
+                                           int argc,
+                                           v8::Local<v8::Value> argv[]);
+
+class InternalCallbackScope {
+ public:
+  enum Flags {
+    kNoFlags = 0,
+    // Indicates whether 'before' and 'after' hooks should be skipped.
+    kSkipAsyncHooks = 1,
+    // Indicates whether nextTick and microtask queues should be skipped.
+    // This should only be used when there is no call into JS in this scope.
+    // (The HTTP parser also uses it for some weird backwards
+    // compatibility issues, but it shouldn't.)
+    kSkipTaskQueues = 2
+  };
+  InternalCallbackScope(Environment* env,
+                        v8::Local<v8::Object> object,
+                        int flags = kNoFlags);
+  // Utility that can be used by AsyncWrap classes.
+  //   explicit InternalCallbackScope(AsyncWrap* async_wrap, int flags = 0);
+  ~InternalCallbackScope();
+  void Close();
+
+  inline bool Failed() const { return failed_; }
+  inline void MarkAsFailed() { failed_ = true; }
+
+ private:
+  Environment* env_;
+  v8::Local<v8::Object> object_;
+  bool skip_hooks_;
+  bool skip_task_queues_;
+  bool failed_ = false;
+  bool pushed_ids_ = false;
+  bool closed_ = false;
+};
 
 }  // namespace pure
 

@@ -142,6 +142,8 @@ struct AssertionInfo {
 #define PRETTY_FUNCTION_NAME ""
 #endif
 
+#define MAYBE_FIELD_PTR(ptr, field) ptr == nullptr ? nullptr : &(ptr->field)
+
 // Same things, but aborts immediately instead of returning nullptr when
 // no memory is available.
 template <typename T>

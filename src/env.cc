@@ -12,6 +12,7 @@
 #include "pure_options.h"
 
 #include "pure_binding.h"
+#include "pure_native_module.h"
 
 namespace pure {
 
@@ -41,6 +42,9 @@ IsolateData::IsolateData(Isolate* isolate,
 
   CreateProperties();
 }
+
+ImmediateInfo::ImmediateInfo(Isolate* isolate)
+    : fields_(isolate, kFieldsCount, nullptr) {}
 
 void IsolateData::CreateProperties() {
   // TODO
@@ -135,7 +139,7 @@ Environment::Environment(IsolateData* isolate_data,
                          EnvironmentFlags::Flags flags)
     : isolate_(isolate),
       isolate_data_(isolate_data),
-      //   immediate_info_(isolate, MAYBE_FIELD_PTR(env_info, immediate_info)),
+      immediate_info_(isolate),
       //   tick_info_(isolate, MAYBE_FIELD_PTR(env_info, tick_info)),
       timer_base_(uv_now(isolate_data->event_loop())),
       exec_argv_(exec_args),
@@ -374,6 +378,28 @@ MaybeLocal<Value> Environment::RunBootstrapping() {
   BootstrapPure();
 }
 
+MaybeLocal<Value> ExecuteBootstrapper(Environment* env,
+                                      const char* id,
+                                      std::vector<Local<String>>* parameters,
+                                      std::vector<Local<Value>>* arguments) {
+  EscapableHandleScope scope(env->isolate());
+  MaybeLocal<Function> maybe_fn =
+      native_module::NativeModuleLoader::GetInstance()->LookupAndCompile(
+          env->context(), id, parameters, env);
+
+  Local<Function> fn;
+  if (!maybe_fn.ToLocal(&fn)) {
+    return MaybeLocal<Value>();
+  }
+
+  MaybeLocal<Value> result = fn->Call(env->context(),
+                                      Undefined(env->isolate()),
+                                      arguments->size(),
+                                      arguments->data());
+
+  return scope.EscapeMaybe(result);
+}
+
 static MaybeLocal<Value> StartExecution(Environment* env,
                                         const char* main_script_id) {
   EscapableHandleScope scope(env->isolate());
@@ -423,7 +449,7 @@ MaybeLocal<Value> StartExecution(Environment* env, StartExecutionCallback cb) {
 
   StartExecution(env, "pure:console");
 
-  return StartExecution(env, env->argv().front().c_str());
+  return StartExecution(env, env->argv().at(1).c_str());
 }
 
 MaybeLocal<Value> LoadEnvironment(Environment* env, StartExecutionCallback cb) {
@@ -545,30 +571,29 @@ void Environment::RunAndClearNativeImmediates(bool only_refed) {
 }
 
 void Environment::CheckImmediate(uv_check_t* handle) {
-  //   Environment* env = Environment::from_immediate_check_handle(handle);
-  //   //   TRACE_EVENT0(TRACING_CATEGORY_NODE1(environment), "CheckImmediate");
+  Environment* env = Environment::from_immediate_check_handle(handle);
+  //   TRACE_EVENT0(TRACING_CATEGORY_NODE1(environment), "CheckImmediate");
 
-  //   HandleScope scope(env->isolate());
-  //   Context::Scope context_scope(env->context());
+  HandleScope scope(env->isolate());
+  Context::Scope context_scope(env->context());
 
-  //   env->RunAndClearNativeImmediates();
+  env->RunAndClearNativeImmediates();
 
-  //   if (env->immediate_info()->count() == 0 || !env->can_call_into_js())
-  //   return;
+  if (env->immediate_info()->count() == 0 || !env->can_call_into_js()) return;
 
-  //   do {
-  //     MakeCallback(env->isolate(),
-  //                  env->process_object(),
-  //                  env->immediate_callback_function(),
-  //                  0,
-  //                  nullptr,
-  //                  {0, 0})
-  //         .ToLocalChecked();
-  //   } while (env->immediate_info()->has_outstanding() &&
-  //   env->can_call_into_js());
+  Local<Object> recv;
 
-  //   if (env->immediate_info()->ref_count() == 0)
-  //   env->ToggleImmediateRef(false);
+  do {
+    MakeCallback(env->isolate(),
+                 recv,
+                 //  env->process_object(),
+                 env->immediate_callback_function(),
+                 0,
+                 nullptr)
+        .ToLocalChecked();
+  } while (env->immediate_info()->has_outstanding() && env->can_call_into_js());
+
+  if (env->immediate_info()->ref_count() == 0) env->ToggleImmediateRef(false);
 }
 
 void Environment::ToggleImmediateRef(bool ref) {

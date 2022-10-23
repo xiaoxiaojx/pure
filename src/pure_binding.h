@@ -28,6 +28,8 @@ enum {
 
 namespace pure {
 
+extern bool pure_is_initialized;
+
 #define PURE_MODULE_CONTEXT_AWARE_INTERNAL(modname, regfunc)                   \
   PURE_MODULE_CONTEXT_AWARE_CPP(modname, regfunc, nullptr, NM_F_INTERNAL)
 

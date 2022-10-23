@@ -1,6 +1,7 @@
 #ifndef SRC_ENV_INL_H_
 #define SRC_ENV_INL_H_
 
+#include "aliased_buffer.h"
 #include "callback_queue-inl.h"
 #include "env.h"
 #include "util.h"
@@ -47,6 +48,17 @@ inline Environment* Environment::GetCurrent(
     const v8::PropertyCallbackInfo<T>& info) {
   return GetCurrent(info.GetIsolate()->GetCurrentContext());
 }
+
+#define V(PropertyName, TypeName)                                              \
+  inline v8::Local<TypeName> Environment::PropertyName() const {               \
+    return PersistentToLocal::Strong(PropertyName##_);                         \
+  }                                                                            \
+  inline void Environment::set_##PropertyName(v8::Local<TypeName> value) {     \
+    PropertyName##_.Reset(isolate(), value);                                   \
+  }
+ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)
+ENVIRONMENT_STRONG_PERSISTENT_VALUES(V)
+#undef V
 
 v8::Local<v8::Context> Environment::context() const {
   return PersistentToLocal::Strong(context_);
@@ -127,6 +139,23 @@ inline uv_timer_t* Environment::timer_handle() {
   return &timer_handle_;
 }
 
+inline ImmediateInfo* Environment::immediate_info() {
+  return &immediate_info_;
+}
+
+inline std::shared_ptr<EnvironmentOptions> Environment::options() {
+  return options_;
+}
+
+inline std::shared_ptr<KVStore> Environment::env_vars() {
+  return env_vars_;
+}
+
+inline Environment* Environment::from_immediate_check_handle(
+    uv_check_t* handle) {
+  return ContainerOf(&Environment::immediate_check_handle_, handle);
+}
+
 inline std::vector<std::string> Environment::argv() {
   return argv_;
 }
@@ -190,15 +219,29 @@ inline void Environment::SetMethod(v8::Local<v8::Object> that,
   function->SetName(name_string);  // NODE_SET_METHOD() compatibility.
 }
 
-#define V(PropertyName, TypeName)                                              \
-  inline v8::Local<TypeName> Environment::PropertyName() const {               \
-    return PersistentToLocal::Strong(PropertyName##_);                         \
-  }                                                                            \
-  inline void Environment::set_##PropertyName(v8::Local<TypeName> value) {     \
-    PropertyName##_.Reset(isolate(), value);                                   \
-  }
-ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)
-#undef V
+inline AliasedUint32Array& ImmediateInfo::fields() {
+  return fields_;
+}
+
+inline uint32_t ImmediateInfo::count() const {
+  return fields_[kCount];
+}
+
+inline uint32_t ImmediateInfo::ref_count() const {
+  return fields_[kRefCount];
+}
+
+inline bool ImmediateInfo::has_outstanding() const {
+  return fields_[kHasOutstanding] == 1;
+}
+
+inline void ImmediateInfo::ref_count_inc(uint32_t increment) {
+  fields_[kRefCount] += increment;
+}
+
+inline void ImmediateInfo::ref_count_dec(uint32_t decrement) {
+  fields_[kRefCount] -= decrement;
+}
 }  // namespace pure
 
 #endif  // SRC_ENV_INL_H_
