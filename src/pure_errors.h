@@ -3,16 +3,14 @@
 
 #include "v8.h"
 
-namespace pure
-{
-    namespace errors
-    {
-        void PerIsolateMessageListener(v8::Local<v8::Message> message,
-                                       v8::Local<v8::Value> error);
+namespace pure {
+namespace errors {
+void PerIsolateMessageListener(v8::Local<v8::Message> message,
+                               v8::Local<v8::Value> error);
 
-        void OnFatalError(const char *location, const char *message);
+void OnFatalError(const char* location, const char* message);
 
-    }
-}
+}  // namespace errors
+}  // namespace pure
 
-#endif // SRC_PURE_ERRORS_H_
+#endif  // SRC_PURE_ERRORS_H_
