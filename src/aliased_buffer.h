@@ -2,34 +2,56 @@
 #define SRC_ALIASED_BUFFER_H_
 
 #include <cinttypes>
+#include "iostream"
 #include "util-inl.h"
 #include "v8.h"
-
 namespace pure {
 
 typedef size_t AliasedBufferIndex;
 
-/**
- * Do not use this class directly when creating instances of it - use the
- * Aliased*Array defined at the end of this file instead.
- *
- * This class encapsulates the technique of having a native buffer mapped to
- * a JS object. Writes to the native buffer can happen efficiently without
- * going through JS, and the data is then available to user's via the exposed
- * JS object.
- *
- * While this technique is computationally efficient, it is effectively a
- * write to JS program state w/out going through the standard
- * (monitored) API. Thus any VM capabilities to detect the modification are
- * circumvented.
- *
- * The encapsulation herein provides a placeholder where such writes can be
- * observed. Any notification APIs will be left as a future exercise.
- */
+// AliasedBufferBase
+// 用于 JavaScript 二进制 Int32Array, Uint8Array 等与 C int32_t, uint8_ 等
+// 数据交互的封装。 使得 C 和 JavaScript 中都可以 fields_[kRefCount] +=
+// increment 这样去修改数据, 无需序列化转换操作, 因为指向的是同一块内存区域
+
+// 通过如下接口即可让 JavaScript 直接操作
+// target->Set(env->context(),
+//               FIXED_ONE_BYTE_STRING(env->isolate(), "immediateInfo"),
+//               env->immediate_info()->fields().GetJSArray()).Check();
+
+// 类模版
 template <class NativeT,
           class V8T,
+          // is_scalar https://en.cppreference.com/w/cpp/types/is_scalar
+          //           template<class T>
+          // struct is_scalar : std::integral_constant<bool,
+          //                      std::is_arithmetic<T>::value     ||
+          //                      std::is_enum<T>::value           ||
+          //                      std::is_pointer<T>::value        ||
+          //                      std::is_member_pointer<T>::value ||
+          //                      std::is_null_pointer<T>::value> {};
           // SFINAE NativeT to be scalar
           typename = std::enable_if_t<std::is_scalar<NativeT>::value>>
+// SFINAE https://zhuanlan.zhihu.com/p/21314708
+// 编译器不能识别如下两种 inc_counter, 会报 redefinition 错误, 于是有了 SFINAE
+// template <typename T>
+// void inc_counter(T& counterObj) {
+//   counterObj.increase();
+// }
+
+// template <typename T>
+// void inc_counter(T& intTypeCounter){
+//   ++intTypeCounter;
+// }
+
+// void doSomething() {
+//   Counter cntObj;
+//   uint32_t cntUI32;
+
+//   // blah blah blah
+//   inc_counter(cntObj);
+//   inc_counter(cntUI32);
+// }
 class AliasedBufferBase {
  public:
   AliasedBufferBase(v8::Isolate* isolate,
@@ -101,27 +123,6 @@ class AliasedBufferBase {
         buffer_(that.buffer_) {
     DCHECK_NULL(index_);
     js_array_ = v8::Global<V8T>(that.isolate_, that.GetJSArray());
-  }
-
-  AliasedBufferIndex Serialize(v8::Local<v8::Context> context,
-                               v8::SnapshotCreator* creator) {
-    DCHECK_NULL(index_);
-    return creator->AddData(context, GetJSArray());
-  }
-
-  inline void Deserialize(v8::Local<v8::Context> context) {
-    DCHECK_NOT_NULL(index_);
-    v8::Local<V8T> arr =
-        context->GetDataFromSnapshotOnce<V8T>(*index_).ToLocalChecked();
-    // These may not hold true for AliasedBuffers that have grown, so should
-    // be removed when we expand the snapshot support.
-    DCHECK_EQ(count_, arr->Length());
-    DCHECK_EQ(byte_offset_, arr->ByteOffset());
-    uint8_t* raw =
-        static_cast<uint8_t*>(arr->Buffer()->GetBackingStore()->Data());
-    buffer_ = reinterpret_cast<NativeT*>(raw + byte_offset_);
-    js_array_.Reset(isolate_, arr);
-    index_ = nullptr;
   }
 
   AliasedBufferBase& operator=(AliasedBufferBase&& that) noexcept {
