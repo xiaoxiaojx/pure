@@ -118,8 +118,8 @@ int InitializePureWithArgs(std::vector<std::string>* argv,
   if (!per_process::cli_options->title.empty())
     uv_set_process_title(per_process::cli_options->title.c_str());
 
-  // We should set pure_is_initialized here instead of in node::Start,
-  // otherwise embedders using node::Init to initialize everything will not be
+  // We should set pure_is_initialized here instead of in pure::Start,
+  // otherwise embedders using pure::Init to initialize everything will not be
   // able to set it and native modules will not load for them.
   pure_is_initialized = true;
   return 0;

@@ -127,6 +127,18 @@ enum InitializationSettingsFlags : uint64_t {
   kInitOpenSSL = 1 << 3
 };
 
+enum encoding {
+  ASCII,
+  UTF8,
+  BASE64,
+  UCS2,
+  BINARY,
+  HEX,
+  BUFFER,
+  BASE64URL,
+  LATIN1 = BINARY
+};
+
 namespace credentials {
 bool SafeGetenv(const char* key, std::string* text, Environment* env = nullptr);
 }  // namespace credentials

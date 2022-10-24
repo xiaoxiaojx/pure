@@ -5,6 +5,7 @@
 #include "util.h"
 #include "uv.h"
 #include "v8.h"
+#include "string_bytes.h"
 
 namespace pure {
 
@@ -18,9 +19,8 @@ static void MakeUtf8String(Isolate* isolate,
                            Local<String> string,
                            MaybeStackBuffer<T>* target) {
   size_t storage;
-  // TODO
-  // if (!StringBytes::StorageSize(isolate, string, UTF8).To(&storage))
-  //     return;
+  if (!StringBytes::StorageSize(isolate, string, UTF8).To(&storage))
+      return;
   storage += 1;
   target->AllocateSufficientStorage(storage);
   const int flags = String::NO_NULL_TERMINATION | String::REPLACE_INVALID_UTF8;

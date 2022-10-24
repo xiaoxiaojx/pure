@@ -124,6 +124,18 @@ struct AssertionInfo {
 #define DCHECK_IMPLIES(a, b)
 #endif
 
+#define ERROR_AND_ABORT(expr)                                                  \
+  do {                                                                         \
+    /* Make sure that this struct does not end up in inline code, but      */  \
+    /* rather in a read-only data section when modifying this code.        */  \
+    static const pure::AssertionInfo args = {                                  \
+        __FILE__ ":" STRINGIFY(__LINE__), #expr, PRETTY_FUNCTION_NAME};        \
+    pure::Assert(args);                                                        \
+  } while (0)
+
+#define UNREACHABLE(...)                                                       \
+  ERROR_AND_ABORT("Unreachable code reached" __VA_OPT__(": ") __VA_ARGS__)
+
 // __builtin_expect https://www.jianshu.com/p/2684613a300f
 // __builtin_expect() 是 GCC (version
 // >= 2.96）提供给程序员使用的，目的是将“分支转移”的信息提供给编译器，这样编译器可以对代码进行优化，以减少指令跳转带来的性能下降。
