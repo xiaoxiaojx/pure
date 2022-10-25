@@ -83,19 +83,6 @@ void SetIsolateMiscHandlers(v8::Isolate* isolate, const IsolateSettings& s) {
   isolate->SetMicrotasksPolicy(s.policy);
 
   Mutex::ScopedLock lock(pure::per_process::cli_options_mutex);
-  // if (per_process::cli_options->get_per_isolate_options()
-  //         ->get_per_env_options()
-  //         ->experimental_fetch)
-  // {
-  //   isolate->SetWasmStreamingCallback(wasm_web_api::StartStreamingCompilation);
-  // }
-
-  // if (per_process::cli_options->get_per_isolate_options()
-  //         ->experimental_shadow_realm)
-  // {
-  //   isolate->SetHostCreateShadowRealmContextCallback(
-  //       shadow_realm::HostCreateShadowRealmContextCallback);
-  // }
 
   if ((s.flags & SHOULD_NOT_SET_PROMISE_REJECTION_CALLBACK) == 0) {
     auto* promise_reject_cb = s.promise_reject_callback

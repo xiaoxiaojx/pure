@@ -1,7 +1,6 @@
 #include "string_bytes.h"
 
 #include <climits>
-#include <cstring>  // memcpy
 #include "base64.h"
 #include "env-inl.h"
 #include "pure_errors.h"
@@ -21,9 +20,8 @@ using v8::Nothing;
 using v8::String;
 using v8::Value;
 
-// Quick and dirty size calculation
-// Will always be at least big enough, but may have some extra
-// UTF8 can be as much as 3x the size, Base64 can have 1-2 extra bytes
+// StorageSize 仅估算出最大可能的大小, 比如 UTF8 编码字节不会超过 length*3
+// Base64 约 1-2倍
 Maybe<size_t> StringBytes::StorageSize(Isolate* isolate,
                                        Local<Value> val,
                                        enum encoding encoding) {

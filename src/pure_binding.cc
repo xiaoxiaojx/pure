@@ -1,11 +1,11 @@
 #include "env-inl.h"
 
 #include "pure_binding.h"
+#include "pure_errors.h"
+#include "stdio.h"
 #include "util-inl.h"
 #include "util.h"
 #include "v8.h"
-#include "stdio.h"
-#include "pure_errors.h"
 
 #define PURE_BUILTIN_STANDARD_MODULES(V) V(addon_console)
 
@@ -76,9 +76,6 @@ static Local<Object> InitModule(Environment* env,
   Local<Function> ctor = env->binding_data_ctor_template()
                              ->GetFunction(env->context())
                              .ToLocalChecked();
-  // TODO
-  // 为什么这里不需要使用 EscapableHandleScopes ?
-  // 暂且认为是 nm_context_register_func 存取引用了 exports
   Local<Object> exports = ctor->NewInstance(env->context()).ToLocalChecked();
   CHECK_NULL(mod->nm_register_func);
   CHECK_NOT_NULL(mod->nm_context_register_func);
@@ -88,13 +85,19 @@ static Local<Object> InitModule(Environment* env,
 }
 
 MaybeLocal<Object> GetInternalBinding(Environment* env, const char* module_v) {
+  // 如果这里用了 EscapableHandleScope 则除开 scope.Escape 的 Local Handle
+  // 都在此函数体结束 后被释放; 如果这里不使用 EscapableHandleScope,
+  // 那么需要确保调用 GetInternalBinding 函数的作用域 有 EscapableHandleScope
+  // 或者 HandleScope, 此时 Local Handle 将在 GetInternalBinding
+  // 被调用作用域结束后被释放
+  EscapableHandleScope scope(env->isolate());
   Local<Object> exports;
   Local<String> module;
   pure_module* mod = FindModule(modlist_internal, module_v, NM_F_INTERNAL);
   if (mod != nullptr) {
     exports = InitModule(env, mod, module);
     // env->internal_bindings.insert(mod);
-    return exports;
+    return scope.Escape(exports);
   }
   return MaybeLocal<Object>();
 }

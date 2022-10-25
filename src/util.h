@@ -238,6 +238,12 @@ class MaybeStackBuffer {
     // CHECK_LE(length + 1, capacity());
     SetLength(length);
 
+    // buf_[length] = T() 相当于设置字符串长度, 如下面的例子
+    // char str[10];
+    // char *ps = str;
+    // ps[8] = char();
+    // int length = strlen(ps);
+    // printf("%d", length); // 7
     // T() is 0 for integer types, nullptr for pointers, etc.
     buf_[length] = T();
   }
