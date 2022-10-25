@@ -4,6 +4,8 @@
 #include "util-inl.h"
 #include "util.h"
 #include "v8.h"
+#include "stdio.h"
+#include "pure_errors.h"
 
 #define PURE_BUILTIN_STANDARD_MODULES(V) V(addon_console)
 
@@ -110,33 +112,10 @@ void GetInternalBinding(const FunctionCallbackInfo<Value>& args) {
   if (mod != nullptr) {
     exports = InitModule(env, mod, module);
     // env->internal_bindings.insert(mod);
-  }
-  // else if (!strcmp(*module_v, "constants"))
-  // {
-  //     exports = Object::New(env->isolate());
-  //     CHECK(
-  //         exports->SetPrototype(env->context(),
-  //         Null(env->isolate())).FromJust());
-  //     DefineConstants(env->isolate(), exports);
-  // }
-  // else if (!strcmp(*module_v, "natives"))
-  // {
-  //     exports =
-  //     native_module::NativeModuleEnv::GetSourceObject(env->context());
-  //     // Legacy feature: process.binding('natives').config contains
-  //     stringified
-  //     // config.gypi
-  //     CHECK(exports
-  //               ->Set(env->context(),
-  //                     env->config_string(),
-  //                     native_module::NativeModuleEnv::GetConfigString(
-  //                         env->isolate()))
-  //               .FromJust());
-  // }
-  else {
-    // char errmsg[1024];
-    // snprintf(errmsg, sizeof(errmsg), "No such module: %s", *module_v);
-    // return THROW_ERR_INVALID_MODULE(env, errmsg);
+  } else {
+    char errmsg[1024];
+    snprintf(errmsg, sizeof(errmsg), "No such module: %s", *module_v);
+    return THROW_ERR_INVALID_MODULE(env, errmsg);
   }
 
   args.GetReturnValue().Set(exports);

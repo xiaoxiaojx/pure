@@ -22,24 +22,65 @@ using v8::Local;
 using v8::Locker;
 using v8::String;
 
+using v8::Function;
 using v8::Isolate;
 using v8::Local;
+using v8::Number;
 using v8::Object;
+using v8::Promise;
+using v8::PromiseRejectEvent;
+using v8::PromiseRejectMessage;
 
 // Local<Context> NewContext(Isolate *);
 
 static std::atomic<uint64_t> next_thread_id{0};
 
 void PromiseRejectCallback(v8::PromiseRejectMessage message) {
-  // TODO
+  static std::atomic<uint64_t> unhandledRejections{0};
+  static std::atomic<uint64_t> rejectionsHandledAfter{0};
+
+  Local<Promise> promise = message.GetPromise();
+  Isolate* isolate = promise->GetIsolate();
+  PromiseRejectEvent event = message.GetEvent();
+
+  Environment* env = Environment::GetCurrent(isolate);
+
+  if (env == nullptr || !env->can_call_into_js()) return;
+
+  Local<Function> callback = env->promise_reject_callback();
+  // The promise is rejected before JS land calls SetPromiseRejectCallback
+  // to initializes the promise reject callback during bootstrap.
+  CHECK(!callback.IsEmpty());
+
+  Local<Value> value;
+  Local<Value> type = Number::New(env->isolate(), event);
+
+  if (event == PromiseRejectEvent::kPromiseRejectWithNoHandler) {
+    value = message.GetValue();
+    unhandledRejections++;
+  } else if (event == PromiseRejectEvent::kPromiseHandlerAddedAfterReject) {
+    value = Undefined(isolate);
+    rejectionsHandledAfter++;
+  } else if (event == PromiseRejectEvent::kPromiseResolveAfterResolved) {
+    value = message.GetValue();
+  } else if (event == PromiseRejectEvent::kPromiseRejectAfterResolved) {
+    value = message.GetValue();
+  } else {
+    return;
+  }
+
+  if (value.IsEmpty()) {
+    value = Undefined(isolate);
+  }
+
+  Local<Value> args[] = {type, promise, value};
+
+  USE(callback->Call(
+      env->context(), Undefined(isolate), arraysize(args), args));
 }
 
 void SetIsolateMiscHandlers(v8::Isolate* isolate, const IsolateSettings& s) {
   isolate->SetMicrotasksPolicy(s.policy);
-
-  // auto *allow_wasm_codegen_cb = s.allow_wasm_code_generation_callback ?
-  // s.allow_wasm_code_generation_callback : AllowWasmCodeGenerationCallback;
-  // isolate->SetAllowWasmCodeGenerationCallback(allow_wasm_codegen_cb);
 
   Mutex::ScopedLock lock(pure::per_process::cli_options_mutex);
   // if (per_process::cli_options->get_per_isolate_options()

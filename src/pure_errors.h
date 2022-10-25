@@ -1,9 +1,9 @@
 #ifndef SRC_PURE_ERRORS_H_
 #define SRC_PURE_ERRORS_H_
 
-#include "v8.h"
-#include "env.h"
 #include "debug_utils-inl.h"
+#include "env.h"
+#include "v8.h"
 
 namespace pure {
 namespace errors {
@@ -16,7 +16,8 @@ void OnFatalError(const char* location, const char* message);
 
 #define ERRORS_WITH_CODE(V)                                                    \
   V(ERR_INVALID_OBJECT_DEFINE_PROPERTY, TypeError)                             \
-  V(ERR_STRING_TOO_LONG, Error)
+  V(ERR_STRING_TOO_LONG, Error)                                                \
+  V(ERR_INVALID_MODULE, Error)
 
 #define V(code, type)                                                          \
   template <typename... Args>                                                  \

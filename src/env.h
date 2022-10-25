@@ -14,7 +14,8 @@
 namespace pure {
 
 #define ENVIRONMENT_STRONG_PERSISTENT_VALUES(V)                                \
-  V(immediate_callback_function, v8::Function)
+  V(immediate_callback_function, v8::Function)                                 \
+  V(promise_reject_callback, v8::Function)
 
 #define ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)                             \
   V(binding_data_ctor_template, v8::FunctionTemplate)

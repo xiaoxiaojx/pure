@@ -63,6 +63,59 @@ void ResetStdio() {
   // https://www.cnblogs.com/zhouhbing/p/4129280.html 如果在某处通过
   // uv_tty_set_mode 修改了终端参数, 此处用于复原
   uv_tty_reset_mode();
+
+#ifdef __POSIX__
+  for (auto& s : stdio) {
+    const int fd = &s - stdio;
+
+    struct stat tmp;
+    if (-1 == fstat(fd, &tmp)) {
+      CHECK_EQ(errno, EBADF);  // Program closed file descriptor.
+      continue;
+    }
+    // fd 0,1,2 与分别与 stdio s 进行比较, 查看是否已经被修改
+    bool is_same_file =
+        (s.stat.st_dev == tmp.st_dev && s.stat.st_ino == tmp.st_ino);
+    if (!is_same_file) continue;  // Program reopened file descriptor.
+
+    // 如果没有被修改, 则继续运行后面的逻辑
+    int flags;
+    do flags = fcntl(fd, F_GETFL);
+    while (flags == -1 && errno == EINTR);  // NOLINT
+    CHECK_NE(flags, -1);
+
+    // 重新设置为 O_NONBLOCK 如果被修改了
+    if (O_NONBLOCK & (flags ^ s.flags)) {
+      flags &= ~O_NONBLOCK;
+      flags |= s.flags & O_NONBLOCK;
+
+      int err;
+      do err = fcntl(fd, F_SETFL, flags);
+      while (err == -1 && errno == EINTR);  // NOLINT
+      CHECK_NE(err, -1);
+    }
+
+    // isatty - 测试文件描述符是否指向终端
+    if (s.isatty) {
+      sigset_t sa;
+      int err;
+
+      // We might be a background job that doesn't own the TTY so block SIGTTOU
+      // before making the tcsetattr() call, otherwise that signal suspends us.
+      sigemptyset(&sa);
+      sigaddset(&sa, SIGTTOU);
+
+      CHECK_EQ(0, pthread_sigmask(SIG_BLOCK, &sa, nullptr));
+      do err = tcsetattr(fd, TCSANOW, &s.termios);
+      while (err == -1 && errno == EINTR);  // NOLINT
+      CHECK_EQ(0, pthread_sigmask(SIG_UNBLOCK, &sa, nullptr));
+
+      // Normally we expect err == 0. But if macOS App Sandbox is enabled,
+      // tcsetattr will fail with err == -1 and errno == EPERM.
+      CHECK_IMPLIES(err != 0, err == -1 && errno == EPERM);
+    }
+  }
+#endif  // __POSIX__
 }
 
 int InitializePureWithArgs(std::vector<std::string>* argv,
@@ -99,21 +152,8 @@ int InitializePureWithArgs(std::vector<std::string>* argv,
 
       // [0] is expected to be the program name, fill it in from the real argv.
       env_argv.insert(env_argv.begin(), argv->at(0));
-
-      //   const int exit_code =
-      //       ProcessGlobalArgs(&env_argv, nullptr, errors,
-      //       kAllowedInEnvironment);
-      //   if (exit_code != 0) return exit_code;
     }
   }
-
-  //   if (!(flags & ProcessFlags::kDisableCLIOptions)) {
-  //     const int exit_code =
-  //         ProcessGlobalArgs(argv, exec_argv, errors,
-  //         kDisallowedInEnvironment);
-  //     if (exit_code != 0) return exit_code;
-  //   }
-
   // Set the process.title immediately after processing argv if --title is set.
   if (!per_process::cli_options->title.empty())
     uv_set_process_title(per_process::cli_options->title.c_str());
