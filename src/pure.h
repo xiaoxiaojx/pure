@@ -88,6 +88,9 @@ PURE_EXTERN int InitializePureWithArgs(std::vector<std::string>* argv,
 
 PURE_EXTERN bool ShouldAbortOnUncaughtException(v8::Isolate* isolate);
 
+PURE_EXTERN void RunAtExit(Environment* env);
+PURE_EXTERN void DefaultProcessExitHandler(Environment* env, int exit_code);
+
 extern "C" PURE_EXTERN void pure_module_register(void* mod);
 
 typedef void (*addon_register_func)(v8::Local<v8::Object> exports,
@@ -336,9 +339,7 @@ class InternalCallbackScope {
     // compatibility issues, but it shouldn't.)
     kSkipTaskQueues = 2
   };
-  InternalCallbackScope(Environment* env,
-                        v8::Local<v8::Object> object,
-                        int flags = kNoFlags);
+  InternalCallbackScope(Environment* env, v8::Local<v8::Object> object);
   // Utility that can be used by AsyncWrap classes.
   //   explicit InternalCallbackScope(AsyncWrap* async_wrap, int flags = 0);
   ~InternalCallbackScope();
@@ -350,8 +351,6 @@ class InternalCallbackScope {
  private:
   Environment* env_;
   v8::Local<v8::Object> object_;
-  bool skip_hooks_;
-  bool skip_task_queues_;
   bool failed_ = false;
   bool pushed_ids_ = false;
   bool closed_ = false;

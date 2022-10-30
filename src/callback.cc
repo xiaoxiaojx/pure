@@ -28,12 +28,8 @@ CallbackScope::~CallbackScope() {
 }
 
 InternalCallbackScope::InternalCallbackScope(Environment* env,
-                                             Local<Object> object,
-                                             int flags)
-    : env_(env),
-      object_(object),
-      skip_hooks_(flags & kSkipAsyncHooks),
-      skip_task_queues_(flags & kSkipTaskQueues) {
+                                             Local<Object> object)
+    : env_(env), object_(object) {
   CHECK_NOT_NULL(env);
   //   env->PushAsyncCallbackScope();
 
@@ -85,23 +81,11 @@ void InternalCallbackScope::Close() {
   auto perform_stopping_check = [&]() {
     if (env_->is_stopping()) {
       MarkAsFailed();
-      //   env_->async_hooks()->clear_async_id_stack();
     }
   };
   perform_stopping_check();
 
-  //   if (!failed_ && async_context_.async_id != 0 && !skip_hooks_) {
-  //     AsyncWrap::EmitAfter(env_, async_context_.async_id);
-  //   }
-
-  //   if (pushed_ids_)
-  //     env_->async_hooks()->pop_async_context(async_context_.async_id);
-
   if (failed_) return;
-
-  //   if (env_->async_callback_scope_depth() > 1 || skip_task_queues_) {
-  //     return;
-  //   }
 
   //   TickInfo* tick_info = env_->tick_info();
 
@@ -119,9 +103,7 @@ MaybeLocal<Value> InternalMakeCallback(Environment* env,
                                        Local<Value> argv[]) {
   CHECK(!recv.IsEmpty());
 
-  int flags = InternalCallbackScope::kNoFlags;
-
-  InternalCallbackScope scope(env, resource, flags);
+  InternalCallbackScope scope(env, resource);
   if (scope.Failed()) {
     return MaybeLocal<Value>();
   }

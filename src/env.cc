@@ -6,12 +6,12 @@
 #include "uv.h"
 #include "v8.h"
 
-// #include "util.h"
 #include <iostream>
 #include "pure.h"
 #include "pure_options.h"
 
 #include "pure_binding.h"
+#include "pure_errors.h"
 #include "pure_native_module.h"
 
 namespace pure {
@@ -31,6 +31,7 @@ using v8::Object;
 using v8::Script;
 using v8::SealHandleScope;
 using v8::String;
+using v8::TryCatch;
 using v8::Value;
 
 IsolateData::IsolateData(Isolate* isolate,
@@ -50,6 +51,8 @@ void IsolateData::CreateProperties() {
   // TODO
 }
 
+// 通过 SetAlignedPointerInEmbedderData 设置一个私有属性值,
+// 这是很通用的一个方法, 在 Js 对象上挂载一个 C 对象
 int const Environment::kNodeContextTag = 0x6e6f64;
 void* const Environment::kNodeContextTagPtr =
     const_cast<void*>(static_cast<const void*>(&Environment::kNodeContextTag));
@@ -71,14 +74,7 @@ void Environment::InitializeMainContext(Local<Context> context,
                                         const EnvSerializeInfo* env_info) {
   context_.Reset(context->GetIsolate(), context);
   AssignToContext(context, ContextInfo(""));
-  // if (env_info != nullptr)
-  // {
-  //     DeserializeProperties(env_info);
-  // }
-  // else
-  // {
   CreateProperties();
-  // }
 }
 
 void Environment::CreateProperties() {
@@ -88,48 +84,8 @@ void Environment::CreateProperties() {
   {
     Context::Scope context_scope(ctx);
     Local<FunctionTemplate> templ = FunctionTemplate::New(isolate());
-    // templ->InstanceTemplate()->SetInternalFieldCount(
-    //     BaseObject::kInternalFieldCount);
-    // templ->Inherit(BaseObject::GetConstructorTemplate(this));
-
     set_binding_data_ctor_template(templ);
   }
-  // TODO
-  // Store primordials setup by the per-context script in the environment.
-  //         Local<Object> per_context_bindings =
-  //             GetPerContextExports(ctx).ToLocalChecked();
-  //         Local<Value> primordials =
-  //             per_context_bindings->Get(ctx,
-  //             primordials_string()).ToLocalChecked();
-  //         CHECK(primordials->IsObject());
-  //         set_primordials(primordials.As<Object>());
-
-  //         Local<String> prototype_string =
-  //             FIXED_ONE_BYTE_STRING(isolate(), "prototype");
-
-  // #define V(EnvPropertyName, PrimordialsPropertyName)                              \
-//     {                                                                            \
-//         Local<Value> ctor =                                                      \
-//             primordials.As<Object>()                                             \
-//                 ->Get(ctx,                                                       \
-//                       FIXED_ONE_BYTE_STRING(isolate(), PrimordialsPropertyName)) \
-//                 .ToLocalChecked();                                               \
-//         CHECK(ctor->IsObject());                                                 \
-//         Local<Value> prototype =                                                 \
-//             ctor.As<Object>()->Get(ctx, prototype_string).ToLocalChecked();      \
-//         CHECK(prototype->IsObject());                                            \
-//         set_##EnvPropertyName(prototype.As<Object>());                           \
-//     }
-
-  //         V(primordials_safe_map_prototype_object, "SafeMap");
-  //         V(primordials_safe_set_prototype_object, "SafeSet");
-  //         V(primordials_safe_weak_map_prototype_object, "SafeWeakMap");
-  //         V(primordials_safe_weak_set_prototype_object, "SafeWeakSet");
-  // #undef V
-
-  //         Local<Object> process_object =
-  //             node::CreateProcessObject(this).FromMaybe(Local<Object>());
-  //         set_process_object(process_object);
 }
 
 Environment::Environment(IsolateData* isolate_data,
@@ -145,13 +101,6 @@ Environment::Environment(IsolateData* isolate_data,
       exec_argv_(exec_args),
       argv_(args),
       exec_path_(GetExecPath(args)),
-      //   should_abort_on_uncaught_toggle_(
-      //       isolate_,
-      //       1,
-      //       MAYBE_FIELD_PTR(env_info, should_abort_on_uncaught_toggle)),
-      //   stream_base_state_(isolate_,
-      //                      StreamBase::kNumStreamBaseStateFields,
-      //                      MAYBE_FIELD_PTR(env_info, stream_base_state)),
       environment_start_time_(PERFORMANCE_NOW()),
       flags_(flags) {
   // TODO
@@ -167,109 +116,138 @@ Environment::Environment(IsolateData* isolate_data,
 }
 
 Environment::~Environment() {
-  // TODO
+  if (Environment** interrupt_data = interrupt_data_.load()) {
+    *interrupt_data = nullptr;
+
+    Isolate::AllowJavascriptExecutionScope allow_js_here(isolate());
+    HandleScope handle_scope(isolate());
+    TryCatch try_catch(isolate());
+    Context::Scope context_scope(context());
+
+    Local<Script> script;
+    if (Script::Compile(context(), String::Empty(isolate())).ToLocal(&script))
+      USE(script->Run(context()));
+
+    DCHECK(consistency_check);
+  }
+
+  CHECK(is_stopping());
+
+  // if (options_->heap_snapshot_near_heap_limit > heap_limit_snapshot_taken_) {
+  //   isolate_->RemoveNearHeapLimitCallback(Environment::NearHeapLimitCallback,
+  //                                         0);
+  // }
+
+  HandleScope handle_scope(isolate());
+
+  context()->SetAlignedPointerInEmbedderData(ContextEmbedderIndex::kEnvironment,
+                                             nullptr);
+
+  // TODO 支持 C++ 模块
+  // if (!is_main_thread()) {
+  //   // Dereference all addons that were loaded into this environment.
+  //   for (binding::DLib& addon : loaded_addons_) {
+  //     addon.Close();
+  //   }
+  // }
+
+  CHECK_EQ(base_object_count_, 0);
 }
 
 void Environment::CleanupHandles() {
   {
-    // Mutex::ScopedLock lock(native_immediates_threadsafe_mutex_);
-    // task_queues_async_initialized_ = false;
+    Mutex::ScopedLock lock(native_immediates_threadsafe_mutex_);
+    task_queues_async_initialized_ = false;
   }
 
   // Assert that no Javascript code is invoked.
   Isolate::DisallowJavascriptExecutionScope disallow_js(
       isolate(), Isolate::DisallowJavascriptExecutionScope::THROW_ON_FAILURE);
 
-  // RunAndClearNativeImmediates(true /* skip unrefed SetImmediate()s */);
+  RunAndClearNativeImmediates(true);
 
-  // for (ReqWrapBase *request : req_wrap_queue_)
-  //     request->Cancel();
-
-  // for (HandleWrap *handle : handle_wrap_queue_)
-  //     handle->Close();
-
-  // for (HandleCleanup &hc : handle_cleanup_queue_)
-  //     hc.cb_(this, hc.handle_, hc.arg_);
-  // handle_cleanup_queue_.clear();
-
-  // while (handle_cleanup_waiting_ != 0 ||
-  //        request_waiting_ != 0 ||
-  //        !handle_wrap_queue_.IsEmpty())
   { uv_run(event_loop(), UV_RUN_ONCE); }
 }
 
+void Environment::Exit(int exit_code) {
+  fprintf(stderr, "WARNING: Exited the environment with code %d\n", exit_code);
+  process_exit_handler_(this, exit_code);
+}
+
 void Environment::AtExit(void (*cb)(void* arg), void* arg) {
-  // TODO
-  // at_exit_functions_.push_front(ExitCallback{cb, arg});
+  at_exit_functions_.push_front(ExitCallback{cb, arg});
 }
 
 void Environment::RunCleanup() {
   started_cleanup_ = true;
-  // TRACE_EVENT0(TRACING_CATEGORY_NODE1(environment), "RunCleanup");
+  // TODO 支持 C++ 模块
   // bindings_.clear();
   CleanupHandles();
-
-  // TODO
-  //  while (!cleanup_hooks_.empty() ||
-  //         native_immediates_.size() > 0 ||
-  //         native_immediates_threadsafe_.size() > 0 ||
-  //         native_immediates_interrupts_.size() > 0)
-  //  {
-  //      // Copy into a vector, since we can't sort an unordered_set in-place.
-  //      std::vector<CleanupHookCallback> callbacks(
-  //          cleanup_hooks_.begin(), cleanup_hooks_.end());
-  //      // We can't erase the copied elements from `cleanup_hooks_` yet,
-  //      because we
-  //      // need to be able to check whether they were un-scheduled by another
-  //      hook.
-
-  //     std::sort(callbacks.begin(), callbacks.end(),
-  //               [](const CleanupHookCallback &a, const CleanupHookCallback
-  //               &b)
-  //               {
-  //                   // Sort in descending order so that the most recently
-  //                   inserted callbacks
-  //                   // are run first.
-  //                   return a.insertion_order_counter_ >
-  //                   b.insertion_order_counter_;
-  //               });
-
-  //     for (const CleanupHookCallback &cb : callbacks)
-  //     {
-  //         if (cleanup_hooks_.count(cb) == 0)
-  //         {
-  //             // This hook was removed from the `cleanup_hooks_` set during
-  //             another
-  //             // hook that was run earlier. Nothing to do here.
-  //             continue;
-  //         }
-
-  //         cb.fn_(cb.arg_);
-  //         cleanup_hooks_.erase(cb);
-  //     }
-  //     CleanupHandles();
-  // }
-
-  // for (const int fd : unmanaged_fds_)
-  // {
-  //     uv_fs_t close_req;
-  //     uv_fs_close(nullptr, &close_req, fd, nullptr);
-  //     uv_fs_req_cleanup(&close_req);
-  // }
 }
 
 void Environment::RunAtExitCallbacks() {
-  // TODO
-  // TRACE_EVENT0(TRACING_CATEGORY_NODE1(environment), "AtExit");
-  // for (ExitCallback at_exit : at_exit_functions_)
-  // {
-  //     at_exit.cb_(at_exit.arg_);
-  // }
-  // at_exit_functions_.clear();
+  for (ExitCallback at_exit : at_exit_functions_) {
+    at_exit.cb_(at_exit.arg_);
+  }
+  at_exit_functions_.clear();
 }
 
 void RunAtExit(Environment* env) {
   env->RunAtExitCallbacks();
+}
+
+void Environment::RunAndClearInterrupts() {
+  while (native_immediates_interrupts_.size() > 0) {
+    NativeImmediateQueue queue;
+    {
+      Mutex::ScopedLock lock(native_immediates_threadsafe_mutex_);
+      queue.ConcatMove(std::move(native_immediates_interrupts_));
+    }
+    SealHandleScope seal_handle_scope(isolate());
+
+    while (auto head = queue.Shift()) head->Call(this);
+  }
+}
+
+// 调用 v8 的 RequestInterrupt 函数, 强制执行一次传入的 callback,
+// 防止 Js 长时间运行一个循环或者一个长任务
+void Environment::RequestInterruptFromV8() {
+  Environment** interrupt_data = new Environment*(this);
+  Environment** dummy = nullptr;
+
+  // 如果 interrupt_data_ == dummy, 则 compare_exchange_strong 返回 true,
+  // 然后把 interrupt_data_ 赋值为 interrupt_data
+  if (!interrupt_data_.compare_exchange_strong(dummy, interrupt_data)) {
+    delete interrupt_data;
+    return;
+  }
+
+  // 如果 interrupt_data_ 是 nullptr
+  isolate()->RequestInterrupt(
+      [](Isolate* isolate, void* data) {
+        std::unique_ptr<Environment*> env_ptr{static_cast<Environment**>(data)};
+        Environment* env = *env_ptr;
+
+        // ~Environment
+        if (env == nullptr) {
+          return;
+        }
+
+        env->interrupt_data_.store(nullptr);
+
+        // 需要被执行的代码
+        env->RunAndClearInterrupts();
+      },
+      interrupt_data);
+}
+
+void DefaultProcessExitHandler(Environment* env, int exit_code) {
+  env->set_can_call_into_js(false);
+  // 释放 libuv 持有的任何全局状态。 Libuv
+  // 通常会在卸载时自动执行此操作，但可以指示它手动执行清理。调用
+  // uv_library_shutdown() 后不要调用 libuv 函数
+  uv_library_shutdown();
+  exit(exit_code);
 }
 
 void FreeEnvironment(Environment* env) {
@@ -277,25 +255,14 @@ void FreeEnvironment(Environment* env) {
   Isolate::DisallowJavascriptExecutionScope disallow_js(
       isolate, Isolate::DisallowJavascriptExecutionScope::THROW_ON_FAILURE);
   {
-    HandleScope handle_scope(isolate);  // For env->context().
+    HandleScope handle_scope(isolate);
     Context::Scope context_scope(env->context());
     SealHandleScope seal_handle_scope(isolate);
 
     env->set_stopping(true);
-    // TODO
-    // env->stop_sub_worker_contexts();
     env->RunCleanup();
     RunAtExit(env);
   }
-
-  // This call needs to be made while the `Environment` is still alive
-  // because we assume that it is available for async tracking in the
-  // NodePlatform implementation.
-
-  // TODO
-  // MultiIsolatePlatform *platform = env->isolate_data()->platform();
-  // if (platform != nullptr)
-  //     platform->DrainTasks(isolate);
 
   delete env;
 }
@@ -305,40 +272,12 @@ bool ShouldAbortOnUncaughtException(Isolate* isolate) {
   Environment* env = Environment::GetCurrent(isolate);
   return env != nullptr && (env->is_main_thread() || !env->is_stopping()) &&
          env->abort_on_uncaught_exception();
-  //    env->should_abort_on_uncaught_toggle()[0] &&
-  //    !env->inside_should_not_abort_on_uncaught_scope();
-}
-
-// This runs at runtime, regardless of whether the context
-// is created from a snapshot.
-Maybe<bool> InitializeContextRuntime(Local<Context> context) {
-  // TODO
-  return Just(true);
-}
-
-Maybe<bool> InitializeContextForSnapshot(Local<Context> context) {
-  // Isolate *isolate = context->GetIsolate();
-  // HandleScope handle_scope(isolate);
-
-  // context->SetEmbedderData(ContextEmbedderIndex::kAllowWasmCodeGeneration,
-  //                          True(isolate));
-
-  // return InitializePrimordials(context);
 }
 
 Maybe<bool> InitializeContext(Local<Context> context) {
-  // std::cout << "InitializeContext ..." << std::endl;
-
-  // if (InitializeContextForSnapshot(context).IsNothing())
-  // {
-  //     return Nothing<bool>();
-  // }
-
-  return InitializeContextRuntime(context);
+  return Just(true);
 }
 
-// InitializeContext, because embedders don't necessarily
-// call NewContext and so they will experience breakages.
 Local<Context> NewContext(Isolate* isolate) {
   auto context = Context::New(isolate, nullptr);
   if (context.IsEmpty()) {
@@ -405,33 +344,16 @@ static MaybeLocal<Value> StartExecution(Environment* env,
   EscapableHandleScope scope(env->isolate());
   CHECK_NOT_NULL(main_script_id);
 
-  std::vector<Local<String>> parameters = {
-      //   env->(),
-      //   env->require_string(),
-      //   env->internal_binding_string(),
-      //   env->primordials_string(),
-      //   FIXED_ONE_BYTE_STRING(env->isolate(), "markBootstrapComplete")
-  };
+  std::vector<Local<String>> parameters = {};
 
-  std::vector<Local<Value>> arguments = {
-      //   env->process_object(),
-      //   env->native_module_require(),
-      //   env->internal_binding_loader(),
-      //   env->primordials(),
-      //   env->NewFunctionTemplate(MarkBootstrapComplete)
-      //       ->GetFunction(env->context())
-      //       .ToLocalChecked()
-  };
+  std::vector<Local<Value>> arguments = {};
 
   return scope.EscapeMaybe(
       ExecuteBootstrapper(env, main_script_id, &parameters, &arguments));
 }
 
 MaybeLocal<Value> StartExecution(Environment* env, StartExecutionCallback cb) {
-  //   InternalCallbackScope callback_scope(env,
-  //                                        Object::New(env->isolate()),
-  //                                        {1, 0},
-  //                                        InternalCallbackScope::kSkipAsyncHooks);
+  InternalCallbackScope callback_scope(env, Object::New(env->isolate()));
 
   if (cb != nullptr) {
     EscapableHandleScope scope(env->isolate());
@@ -439,10 +361,7 @@ MaybeLocal<Value> StartExecution(Environment* env, StartExecutionCallback cb) {
     if (StartExecution(env, "internal/bootstrap/environment").IsEmpty())
       return {};
 
-    StartExecutionCallbackInfo info = {
-        // env->process_object(),
-        // env->native_module_require(),
-    };
+    StartExecutionCallbackInfo info = {};
 
     return scope.EscapeMaybe(cb(info));
   }
@@ -473,10 +392,6 @@ void Environment::InitializeLibuv() {
 
   CHECK_EQ(0, uv_check_start(immediate_check_handle(), CheckImmediate));
 
-  // Inform V8's CPU profiler when we're idle.  The profiler is sampling-based
-  // but not all samples are created equal; mark the wall clock time spent in
-  // epoll_wait() and friends so profiling tools can filter it out.  The samples
-  // still end up in v8.log but with state=IDLE rather than state=EXTERNAL.
   CHECK_EQ(0, uv_prepare_init(event_loop(), &idle_prepare_handle_));
   CHECK_EQ(0, uv_check_init(event_loop(), &idle_check_handle_));
 
@@ -501,79 +416,59 @@ void Environment::InitializeLibuv() {
     }
   }
 
-  // Register clean-up cb to be called to clean up the handles
-  // when the environment is freed, note that they are not cleaned in
-  // the one environment per process setup, but will be called in
-  // FreeEnvironment.
   //   RegisterHandleCleanups();
 
   //   StartProfilerIdleNotifier();
 }
 
 void Environment::RunAndClearNativeImmediates(bool only_refed) {
-  //   TRACE_EVENT0(TRACING_CATEGORY_NODE1(environment),
-  //                "RunAndClearNativeImmediates");
-  //   HandleScope handle_scope(isolate_);
-  //   InternalCallbackScope cb_scope(this, Object::New(isolate_), {0, 0});
+  HandleScope handle_scope(isolate_);
+  InternalCallbackScope cb_scope(this, Object::New(isolate_));
 
-  //   size_t ref_count = 0;
+  size_t ref_count = 0;
 
-  //   // Handle interrupts first. These functions are not allowed to throw
-  //   // exceptions, so we do not need to handle that.
-  //   RunAndClearInterrupts();
+  // Handle interrupts first. These functions are not allowed to throw
+  // exceptions, so we do not need to handle that.
+  RunAndClearInterrupts();
 
-  //   auto drain_list = [&](NativeImmediateQueue* queue) {
-  //     TryCatchScope try_catch(this);
-  //     DebugSealHandleScope seal_handle_scope(isolate());
-  //     while (auto head = queue->Shift()) {
-  //       bool is_refed = head->flags() & CallbackFlags::kRefed;
-  //       if (is_refed) ref_count++;
+  auto drain_list = [&](NativeImmediateQueue* queue) {
+    errors::TryCatchScope try_catch(this);
+    SealHandleScope seal_handle_scope(isolate());
+    while (auto head = queue->Shift()) {
+      bool is_refed = head->flags() & CallbackFlags::kRefed;
+      if (is_refed) ref_count++;
 
-  //       if (is_refed || !only_refed) head->Call(this);
+      if (is_refed || !only_refed) head->Call(this);
 
-  //       head.reset();  // Destroy now so that this is also observed by
-  //       try_catch.
+      head.reset();  // Destroy now so that this is also observed by
 
-  //       if (UNLIKELY(try_catch.HasCaught())) {
-  //         if (!try_catch.HasTerminated() && can_call_into_js())
-  //           errors::TriggerUncaughtException(isolate(), try_catch);
+      if (UNLIKELY(try_catch.HasCaught())) {
+        if (!try_catch.HasTerminated() && can_call_into_js())
+          errors::TriggerUncaughtException(isolate(), try_catch);
 
-  //         return true;
-  //       }
-  //     }
-  //     return false;
-  //   };
-  //   while (drain_list(&native_immediates_)) {
-  //   }
+        return true;
+      }
+    }
+    return false;
+  };
+  while (drain_list(&native_immediates_)) {
+  }
 
-  //   immediate_info()->ref_count_dec(ref_count);
+  immediate_info()->ref_count_dec(ref_count);
 
-  //   if (immediate_info()->ref_count() == 0) ToggleImmediateRef(false);
+  if (immediate_info()->ref_count() == 0) ToggleImmediateRef(false);
 
-  //   // It is safe to check .size() first, because there is a causal
-  //   relationship
-  //   // between pushes to the threadsafe immediate list and this function
-  //   being
-  //   // called. For the common case, it's worth checking the size first before
-  //   // establishing a mutex lock.
-  //   // This is intentionally placed after the `ref_count` handling, because
-  //   when
-  //   // refed threadsafe immediates are created, they are not counted towards
-  //   the
-  //   // count in immediate_info() either.
-  //   NativeImmediateQueue threadsafe_immediates;
-  //   if (native_immediates_threadsafe_.size() > 0) {
-  //     Mutex::ScopedLock lock(native_immediates_threadsafe_mutex_);
-  //     threadsafe_immediates.ConcatMove(std::move(native_immediates_threadsafe_));
-  //   }
-  //   while (drain_list(&threadsafe_immediates)) {
-  //   }
+  NativeImmediateQueue threadsafe_immediates;
+  if (native_immediates_threadsafe_.size() > 0) {
+    Mutex::ScopedLock lock(native_immediates_threadsafe_mutex_);
+    threadsafe_immediates.ConcatMove(std::move(native_immediates_threadsafe_));
+  }
+  while (drain_list(&threadsafe_immediates)) {
+  }
 }
 
 void Environment::CheckImmediate(uv_check_t* handle) {
   Environment* env = Environment::from_immediate_check_handle(handle);
-  //   TRACE_EVENT0(TRACING_CATEGORY_NODE1(environment), "CheckImmediate");
-
   HandleScope scope(env->isolate());
   Context::Scope context_scope(env->context());
 
@@ -584,12 +479,8 @@ void Environment::CheckImmediate(uv_check_t* handle) {
   Local<Object> recv;
 
   do {
-    MakeCallback(env->isolate(),
-                 recv,
-                 //  env->process_object(),
-                 env->immediate_callback_function(),
-                 0,
-                 nullptr)
+    MakeCallback(
+        env->isolate(), recv, env->immediate_callback_function(), 0, nullptr)
         .ToLocalChecked();
   } while (env->immediate_info()->has_outstanding() && env->can_call_into_js());
 
@@ -600,7 +491,6 @@ void Environment::ToggleImmediateRef(bool ref) {
   if (started_cleanup_) return;
 
   if (ref) {
-    // Idle handle is needed only to stop the event loop from blocking in poll.
     uv_idle_start(immediate_idle_handle(), [](uv_idle_t*) {});
   } else {
     uv_idle_stop(immediate_idle_handle());
@@ -610,6 +500,8 @@ void Environment::ToggleImmediateRef(bool ref) {
 void Environment::ExitEnv() {
   set_can_call_into_js(false);
   set_stopping(true);
+  // 使得 JavaScript 执行终止, 可以通过调用 isolate_->CancelTerminateExecution()
+  // 取消该操作
   isolate_->TerminateExecution();
   SetImmediateThreadsafe([](Environment* env) { uv_stop(env->event_loop()); },
                          CallbackFlags::kRefed);

@@ -200,6 +200,23 @@ void Environment::SetImmediateThreadsafe(Fn&& cb, CallbackFlags::Flags flags) {
   }
 }
 
+template <typename Fn>
+void Environment::RequestInterrupt(Fn&& cb) {
+  auto callback = native_immediates_interrupts_.CreateCallback(
+      std::move(cb), CallbackFlags::kRefed);
+  {
+    Mutex::ScopedLock lock(native_immediates_threadsafe_mutex_);
+    native_immediates_interrupts_.Push(std::move(callback));
+    if (task_queues_async_initialized_) uv_async_send(&task_queues_async_);
+  }
+  RequestInterruptFromV8();
+}
+
+void Environment::set_process_exit_handler(
+    std::function<void(Environment*, int)>&& handler) {
+  process_exit_handler_ = std::move(handler);
+}
+
 inline void Environment::SetMethod(v8::Local<v8::Object> that,
                                    const char* name,
                                    v8::FunctionCallback callback) {

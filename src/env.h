@@ -2,6 +2,8 @@
 #define SRC_ENV_H_
 
 #include <vector>
+#include <list>
+
 #include "aliased_buffer.h"
 #include "callback_queue.h"
 #include "pure.h"
@@ -19,6 +21,8 @@ namespace pure {
 
 #define ENVIRONMENT_STRONG_PERSISTENT_TEMPLATES(V)                             \
   V(binding_data_ctor_template, v8::FunctionTemplate)
+
+#define PER_ISOLATE_STRING_PROPERTIES(V) V(exit_code_string, "exitCode")
 
 using v8::Context;
 using v8::Isolate;
@@ -146,10 +150,13 @@ class Environment {
 
   void CleanupHandles();
   void RunCleanup();
+  void Exit(int code);
   void ExitEnv();
 
   void AtExit(void (*cb)(void* arg), void* arg);
   void RunAtExitCallbacks();
+  void RequestInterruptFromV8();
+  void RunAndClearInterrupts();
 
   v8::MaybeLocal<v8::Value> RunBootstrapping();
   inline std::vector<std::string> argv();
@@ -174,7 +181,8 @@ class Environment {
   inline uv_idle_t* immediate_idle_handle();
   void RunAndClearNativeImmediates(bool only_refed = false);
   void ToggleImmediateRef(bool ref);
-
+  inline void set_process_exit_handler(
+      std::function<void(Environment*, int)>&& handler);
   bool started_cleanup_ = false;
 
   inline bool has_run_bootstrapping_code() const;
@@ -207,6 +215,9 @@ class Environment {
   };
 
   void CreateProperties();
+
+  template <typename Fn>
+  inline void RequestInterrupt(Fn&& cb);
 
   inline void AssignToContext(v8::Local<v8::Context> context,
                               const ContextInfo& info);
@@ -251,6 +262,7 @@ class Environment {
   uv_async_t task_queues_async_;
   int64_t task_queues_async_refs_ = 0;
   bool has_run_bootstrapping_code_ = false;
+  int64_t base_object_count_ = 0;
 
   ImmediateInfo immediate_info_;
   // TickInfo tick_info_;
@@ -276,13 +288,37 @@ class Environment {
 
   uint64_t flags_;
   uint64_t thread_id_;
+  std::atomic<Environment**> interrupt_data_{nullptr};
 
   typedef CallbackQueue<void, Environment*> NativeImmediateQueue;
+  NativeImmediateQueue native_immediates_;
+
   Mutex native_immediates_threadsafe_mutex_;
   NativeImmediateQueue native_immediates_threadsafe_;
   NativeImmediateQueue native_immediates_interrupts_;
 
+
   bool task_queues_async_initialized_ = false;
+  std::function<void(Environment*, int)> process_exit_handler_{
+      DefaultProcessExitHandler};
+
+  struct ExitCallback {
+    void (*cb_)(void* arg);
+    void* arg_;
+  };
+
+  std::list<ExitCallback> at_exit_functions_;
+
+#define VP(PropertyName, StringValue) V(v8::Private, PropertyName)
+#define VY(PropertyName, StringValue) V(v8::Symbol, PropertyName)
+#define VS(PropertyName, StringValue) V(v8::String, PropertyName)
+#define V(TypeName, PropertyName)                                              \
+  inline v8::Local<TypeName> PropertyName() const;
+  PER_ISOLATE_STRING_PROPERTIES(VS)
+#undef V
+#undef VS
+#undef VY
+#undef VP
 
   static void CheckImmediate(uv_check_t* handle);
 

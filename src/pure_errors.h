@@ -12,6 +12,33 @@ void PerIsolateMessageListener(v8::Local<v8::Message> message,
 
 void OnFatalError(const char* location, const char* message);
 
+class TryCatchScope : public v8::TryCatch {
+ public:
+  enum class CatchMode { kNormal, kFatal };
+
+  explicit TryCatchScope(Environment* env, CatchMode mode = CatchMode::kNormal)
+      : v8::TryCatch(env->isolate()), env_(env), mode_(mode) {}
+  ~TryCatchScope();
+
+  void* operator new(std::size_t count) = delete;
+  void* operator new[](std::size_t count) = delete;
+  TryCatchScope(TryCatchScope&) = delete;
+  TryCatchScope(TryCatchScope&&) = delete;
+  TryCatchScope operator=(TryCatchScope&) = delete;
+  TryCatchScope operator=(TryCatchScope&&) = delete;
+
+ private:
+  Environment* env_;
+  CatchMode mode_;
+};
+
+void TriggerUncaughtException(v8::Isolate* isolate,
+                              const v8::TryCatch& try_catch);
+void TriggerUncaughtException(v8::Isolate* isolate,
+                              v8::Local<v8::Value> error,
+                              v8::Local<v8::Message> message,
+                              bool from_promise = false);
+
 }  // namespace errors
 
 #define ERRORS_WITH_CODE(V)                                                    \
