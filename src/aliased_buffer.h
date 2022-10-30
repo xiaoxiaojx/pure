@@ -18,6 +18,8 @@ typedef size_t AliasedBufferIndex;
 // target->Set(env->context(),
 //               FIXED_ONE_BYTE_STRING(env->isolate(), "immediateInfo"),
 //               env->immediate_info()->fields().GetJSArray()).Check();
+// ref => immediateInfo[kRefCount]++
+// unref => --immediateInfo[kRefCount]
 
 // 类模版
 template <class NativeT,

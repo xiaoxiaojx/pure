@@ -7,6 +7,8 @@
 #include "v8.h"
 
 #include <iostream>
+#include <memory>
+
 #include "pure.h"
 #include "pure_options.h"
 
@@ -44,6 +46,10 @@ IsolateData::IsolateData(Isolate* isolate,
   CreateProperties();
 }
 
+// TODO 实现 setImmediate
+// fields_ 可用于 js 直接操作, 见 aliased_buffer.h
+// ref => immediateInfo[kRefCount]++
+// unref => --immediateInfo[kRefCount]
 ImmediateInfo::ImmediateInfo(Isolate* isolate)
     : fields_(isolate, kFieldsCount, nullptr) {}
 
@@ -55,6 +61,19 @@ void IsolateData::CreateProperties() {
 // 这是很通用的一个方法, 在 Js 对象上挂载一个 C 对象
 int const Environment::kNodeContextTag = 0x6e6f64;
 void* const Environment::kNodeContextTagPtr =
+    // const_cast 的例子
+    // ❌ const int constant = 21;
+    // int* modifier = &constant
+    // Error: invalid conversion from 'const int*' to 'int*'
+
+    // ✅ const int constant = 21;
+    // const int* const_p = &constant;
+    // int* modifier = const_cast<int*>(const_p);
+    // *modifier = 7;
+
+    // ✅ const int constant = 21;
+    // int* modifier = (int*)(&constant);
+
     const_cast<void*>(static_cast<const void*>(&Environment::kNodeContextTag));
 
 std::string GetExecPath(const std::vector<std::string>& argv) {
@@ -82,6 +101,13 @@ void Environment::CreateProperties() {
   Local<Context> ctx = context();
 
   {
+    // Context::Scope 用于管理 context, 用于控制当前 js 运行的上下文,
+    // 比如 https://github.com/mcollina/worker 的实现, 在一个线程中用的新的
+    // context 与 isolate
+
+    // Context: JavaScript 允许多个全局对象和内置 JavaScript
+    // 对象集（如 Object 或 Array 函数）在同一个堆内共存。 Node.js 通过 vm
+    // 模块公开了这种能力。
     Context::Scope context_scope(ctx);
     Local<FunctionTemplate> templ = FunctionTemplate::New(isolate());
     set_binding_data_ctor_template(templ);
@@ -103,7 +129,22 @@ Environment::Environment(IsolateData* isolate_data,
       exec_path_(GetExecPath(args)),
       environment_start_time_(PERFORMANCE_NOW()),
       flags_(flags) {
-  // TODO
+  HandleScope handle_scope(isolate);
+
+  // TODO 暂时只支持 kDefaultFlags
+  if (flags_ & EnvironmentFlags::kDefaultFlags) {
+    flags_ = flags_ | EnvironmentFlags::kOwnsProcessState |
+             EnvironmentFlags::kOwnsInspector;
+  }
+
+  set_env_vars(per_process::system_environment);
+
+  options_ =
+      std::make_shared<EnvironmentOptions>(*isolate_data->options()->per_env);
+
+  if (!(flags_ & EnvironmentFlags::kOwnsProcessState)) {
+    set_abort_on_uncaught_exception(false);
+  }
 }
 
 Environment::Environment(IsolateData* isolate_data,
@@ -119,8 +160,10 @@ Environment::~Environment() {
   if (Environment** interrupt_data = interrupt_data_.load()) {
     *interrupt_data = nullptr;
 
+    // 用于恢复 DisallowJavascriptExecutionScope, demo 见 demo/v8-api-test.cc
     Isolate::AllowJavascriptExecutionScope allow_js_here(isolate());
     HandleScope handle_scope(isolate());
+    // 当前作用域 js 运行出错, 信息将挂载在 try_catch 上
     TryCatch try_catch(isolate());
     Context::Scope context_scope(context());
 
@@ -160,7 +203,7 @@ void Environment::CleanupHandles() {
     task_queues_async_initialized_ = false;
   }
 
-  // Assert that no Javascript code is invoked.
+  // 当前作用域运行 js 代码将会抛错, demo 见 demo/v8-api-test.cc
   Isolate::DisallowJavascriptExecutionScope disallow_js(
       isolate(), Isolate::DisallowJavascriptExecutionScope::THROW_ON_FAILURE);
 

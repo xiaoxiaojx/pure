@@ -79,15 +79,6 @@ inline void Environment::AssignToContext(v8::Local<v8::Context> context,
   // Used by Environment::GetCurrent to know that we are on a node context.
   context->SetAlignedPointerInEmbedderData(ContextEmbedderIndex::kContextTag,
                                            Environment::kNodeContextTagPtr);
-  // Used to retrieve bindings
-  // context->SetAlignedPointerInEmbedderData(
-  //     ContextEmbedderIndex::kBindingListIndex, &(this->bindings_));
-
-  // #if HAVE_INSPECTOR
-  //         inspector_agent()->ContextCreated(context, info);
-  // #endif // HAVE_INSPECTOR
-
-  //         this->async_hooks()->AddContext(context);
 }
 
 inline IsolateData* Environment::isolate_data() const {
@@ -149,6 +140,14 @@ inline std::shared_ptr<EnvironmentOptions> Environment::options() {
 
 inline std::shared_ptr<KVStore> Environment::env_vars() {
   return env_vars_;
+}
+
+inline void Environment::set_env_vars(std::shared_ptr<KVStore> env_vars) {
+  env_vars_ = env_vars;
+}
+
+inline void Environment::set_abort_on_uncaught_exception(bool value) {
+  options_->abort_on_uncaught_exception = value;
 }
 
 inline Environment* Environment::from_immediate_check_handle(
@@ -258,6 +257,15 @@ inline void ImmediateInfo::ref_count_inc(uint32_t increment) {
 
 inline void ImmediateInfo::ref_count_dec(uint32_t decrement) {
   fields_[kRefCount] -= decrement;
+}
+
+inline std::shared_ptr<PerIsolateOptions> IsolateData::options() {
+  return options_;
+}
+
+inline void IsolateData::set_options(
+    std::shared_ptr<PerIsolateOptions> options) {
+  options_ = std::move(options);
 }
 }  // namespace pure
 

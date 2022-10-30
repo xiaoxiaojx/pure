@@ -159,14 +159,17 @@ install_manifest.txt
 *.pyc
 __pycache__
 .DS_Store
+
 *~
 
 src/main.o
 output/
 
-pure.dSYM/
+*.dSYM/
 
 pure
+
+pure_test
 
 liba/
 

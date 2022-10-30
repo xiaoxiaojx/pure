@@ -27,11 +27,12 @@ CallbackScope::~CallbackScope() {
   delete private_;
 }
 
+// InternalCallbackScope isolate->SetIdle(false);
+// ~InternalCallbackScope isolate->SetIdle(true);
 InternalCallbackScope::InternalCallbackScope(Environment* env,
                                              Local<Object> object)
     : env_(env), object_(object) {
   CHECK_NOT_NULL(env);
-  //   env->PushAsyncCallbackScope();
 
   if (!env->can_call_into_js()) {
     failed_ = true;
@@ -42,32 +43,15 @@ InternalCallbackScope::InternalCallbackScope(Environment* env,
 
   HandleScope handle_scope(isolate);
   Local<Context> current_context = isolate->GetCurrentContext();
-  // If you hit this assertion, the caller forgot to enter the right Node.js
-  // Environment's v8::Context first.
-  // We first check `env->context() != current_context` because the contexts
-  // likely *are* the same, in which case we can skip the slightly more
-  // expensive Environment::GetCurrent() call.
   if (UNLIKELY(env->context() != current_context)) {
     CHECK_EQ(Environment::GetCurrent(isolate), env);
   }
 
   isolate->SetIdle(false);
-
-  //   env->async_hooks()->push_async_context(
-  //       async_context_.async_id, async_context_.trigger_async_id, object);
-
-  // pushed_ids_ = true;
-
-  //   if (asyncContext.async_id != 0 && !skip_hooks_) {
-  //     // No need to check a return value because the application will exit if
-  //     // an exception occurs.
-  //     AsyncWrap::EmitBefore(env, asyncContext.async_id);
-  //   }
 }
 
 InternalCallbackScope::~InternalCallbackScope() {
   Close();
-  //   env_->PopAsyncCallbackScope();
 }
 
 void InternalCallbackScope::Close() {
@@ -166,24 +150,12 @@ MaybeLocal<Value> MakeCallback(Isolate* isolate,
                                Local<Function> callback,
                                int argc,
                                Local<Value> argv[]) {
-  // Observe the following two subtleties:
-  //
-  // 1. The environment is retrieved from the callback function's context.
-  // 2. The context to enter is retrieved from the environment.
-  //
-  // Because of the AssignToContext() call in src/node_contextify.cc,
-  // the two contexts need not be the same.
   Environment* env =
       Environment::GetCurrent(callback->GetCreationContext().ToLocalChecked());
   CHECK_NOT_NULL(env);
   Context::Scope context_scope(env->context());
   MaybeLocal<Value> ret =
       InternalMakeCallback(env, recv, recv, callback, argc, argv);
-  //   if (ret.IsEmpty() && env->async_callback_scope_depth() == 0) {
-  //     // This is only for legacy compatibility and we may want to look into
-  //     // removing/adjusting it.
-  //     return Undefined(isolate);
-  //   }
   return ret;
 }
 }  // namespace pure

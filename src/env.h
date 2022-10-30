@@ -1,8 +1,8 @@
 #ifndef SRC_ENV_H_
 #define SRC_ENV_H_
 
-#include <vector>
 #include <list>
+#include <vector>
 
 #include "aliased_buffer.h"
 #include "callback_queue.h"
@@ -97,6 +97,9 @@ class KVStore {
   static std::shared_ptr<KVStore> CreateMapKVStore();
 };
 
+namespace per_process {
+extern std::shared_ptr<KVStore> system_environment;
+}
 class Environment {
  public:
   // Copy Constructor
@@ -175,7 +178,7 @@ class Environment {
   inline void set_can_call_into_js(bool can_call_into_js);
 
   inline bool abort_on_uncaught_exception() const;
-
+  inline void set_abort_on_uncaught_exception(bool value);
   inline uv_check_t* immediate_check_handle();
   inline uv_timer_t* timer_handle();
   inline uv_idle_t* immediate_idle_handle();
@@ -297,7 +300,6 @@ class Environment {
   NativeImmediateQueue native_immediates_threadsafe_;
   NativeImmediateQueue native_immediates_interrupts_;
 
-
   bool task_queues_async_initialized_ = false;
   std::function<void(Environment*, int)> process_exit_handler_{
       DefaultProcessExitHandler};
@@ -341,6 +343,9 @@ class PURE_EXTERN_PRIVATE IsolateData {
   IsolateData& operator=(IsolateData&&) = delete;
 
   inline v8::Isolate* isolate() const;
+
+  inline std::shared_ptr<PerIsolateOptions> options();
+  inline void set_options(std::shared_ptr<PerIsolateOptions> options);
 
  private:
   v8::Isolate* const isolate_;
