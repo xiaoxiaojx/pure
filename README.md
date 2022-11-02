@@ -1,17 +1,28 @@
 # Pure
 
-Pure is a lightweight JavaScript runtime.
+Pure is a lightweight JavaScript runtime, based on v8 and libuv.
+> It is mainly used for learning 📖 ✍️
+
+The [Minimum Common Web Platform API](https://proposal-common-min-api.deno.dev/) will be gradually implemented in the future.
+
 
 ## Getting Started
-
+Only supports MacBook M1 for now.
 ```bash
-# step1: clone
+# Step1: clone
 git clone https://github.com/xiaoxiaojx/pure.git
 
-# step2: build
+# Step2: build v8 and uv
+# refer to build-v8.sh build-uv.sh
+# mkdir -p liba
+#├── liba 
+#│   ├── libuv_a.a
+#│   ├── libv8_monolith.a
+
+# Step3: build pure
 make build
 
-# step3: run
+# Step4: run
 ./pure ./hello.js
 
 # hello world~
