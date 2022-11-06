@@ -1,3 +1,15 @@
+/**
+ * @file callback_queue-inl.h
+ * @author xiaoxiaojx (784487301@qq.com)
+ * @brief 用链表实现的队列, 核心为 std::move, std::forward 等的使用, 参考于
+ * node/src/callback_queue-inl.h
+ * @version 0.1
+ * @date 2022-11-06
+ *
+ * @copyright Copyright (c) 2022
+ *
+ */
+
 #ifndef SRC_CALLBACK_QUEUE_INL_H_
 #define SRC_CALLBACK_QUEUE_INL_H_
 #include <memory>

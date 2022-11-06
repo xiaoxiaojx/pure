@@ -156,6 +156,10 @@ struct AssertionInfo {
 
 #define MAYBE_FIELD_PTR(ptr, field) ptr == nullptr ? nullptr : &(ptr->field)
 
+
+inline char ToUpper(char c);
+inline std::string ToUpper(const std::string& in);
+
 // Same things, but aborts immediately instead of returning nullptr when
 // no memory is available.
 template <typename T>

@@ -4,6 +4,7 @@
 #include "util.h"
 #include "uv.h"
 #include "v8.h"
+#include <locale>
 
 namespace pure {
 
@@ -190,6 +191,16 @@ struct OnScopeLeaveImpl {
 template <typename Fn>
 inline MUST_USE_RESULT OnScopeLeaveImpl<Fn> OnScopeLeave(Fn&& fn) {
   return OnScopeLeaveImpl<Fn>{std::move(fn)};
+}
+
+char ToUpper(char c) {
+  return std::toupper(c, std::locale::classic());
+}
+
+std::string ToUpper(const std::string& in) {
+  std::string out(in.size(), 0);
+  for (size_t i = 0; i < in.size(); ++i) out[i] = ToUpper(in[i]);
+  return out;
 }
 }  // namespace pure
 

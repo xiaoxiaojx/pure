@@ -5,6 +5,7 @@
 #include "pure_options.h"
 #include "util.h"
 #include "v8.h"
+#include "debug_utils.h"
 
 #include <sstream>
 
@@ -60,14 +61,14 @@ void PerIsolateMessageListener(Local<Message> message, Local<Value> error) {
 }
 
 void OnFatalError(const char* location, const char* message) {
-  // if (location)
-  //  {
-  //      FPrintF(stderr, "FATAL ERROR: %s %s\n", location, message);
-  //  }
-  //  else
-  //  {
-  //      FPrintF(stderr, "FATAL ERROR: %s\n", message);
-  //  }
+  if (location)
+   {
+       FPrintF(stderr, "FATAL ERROR: %s %s\n", location, message);
+   }
+   else
+   {
+       FPrintF(stderr, "FATAL ERROR: %s\n", message);
+   }
 
   Isolate* isolate = Isolate::TryGetCurrent();
   Environment* env = nullptr;
