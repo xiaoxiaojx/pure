@@ -90,6 +90,12 @@ class KVStore {
   virtual void Delete(v8::Isolate* isolate, v8::Local<v8::String> key) = 0;
   virtual v8::Local<v8::Array> Enumerate(v8::Isolate* isolate) const = 0;
 
+  // C++
+  // 智能指针底层是采用引用计数的方式实现的。简单的理解，智能指针在申请堆内存空间的同时，会为其配备一个整形值（初始值为
+  // 1），每当有新对象使用此堆内存时，该整形值
+  // +1；反之，每当使用此堆内存的对象被释放时，该整形值减
+  // 1。当堆空间对应的整形值为 0
+  // 时，即表明不再有对象使用它，该堆空间就会被释放掉
   virtual std::shared_ptr<KVStore> Clone(v8::Isolate* isolate) const;
   virtual v8::Maybe<bool> AssignFromObject(v8::Local<v8::Context> context,
                                            v8::Local<v8::Object> entries);

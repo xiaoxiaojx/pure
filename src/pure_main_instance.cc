@@ -203,6 +203,8 @@ void PureMainInstance::Run(int* exit_code, Environment* env) {
 
   ResetStdio();
 
+// 对于一些复杂的内存泄露可能无法解析出来而且有一个问题就是只有检测的进程退出后才会输出内存泄露信息。
+// sanitize可以在检测到内存泄露第一时间立刻终止进程，并且它可以深入检测（随应用进程一起编译）
 #if defined(LEAK_SANITIZER)
   __lsan_do_leak_check();
 #endif

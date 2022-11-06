@@ -244,6 +244,10 @@ void Environment::RunAndClearInterrupts() {
     NativeImmediateQueue queue;
     {
       Mutex::ScopedLock lock(native_immediates_threadsafe_mutex_);
+      // std::move 把左值强制转化为右值, static_cast<T&&>(lvalue)
+      // std::move 会触发 移动构造函数和移动赋值重载函数, 被移动对象请不要再使用
+      // 在STL的很多容器中，都实现了以右值引用为参数的移动构造函数和移动赋值重载函数
+      // https://zhuanlan.zhihu.com/p/335994370
       queue.ConcatMove(std::move(native_immediates_interrupts_));
     }
     SealHandleScope seal_handle_scope(isolate());
@@ -255,7 +259,11 @@ void Environment::RunAndClearInterrupts() {
 // 调用 v8 的 RequestInterrupt 函数, 强制执行一次传入的 callback,
 // 防止 Js 长时间运行一个循环或者一个长任务
 void Environment::RequestInterruptFromV8() {
+  // new type 相当于创建一个 type 类型的内存空间
+  // new type* 表示（）内传的值为一个指针类型参数
+  // test-demo/new-pointer.cc
   Environment** interrupt_data = new Environment*(this);
+
   Environment** dummy = nullptr;
 
   // 如果 interrupt_data_ == dummy, 则 compare_exchange_strong 返回 true,
@@ -268,6 +276,8 @@ void Environment::RequestInterruptFromV8() {
   // 如果 interrupt_data_ 是 nullptr
   isolate()->RequestInterrupt(
       [](Isolate* isolate, void* data) {
+        // std::unique_ptr 自动释放指针, 无需手动 delete
+        // https://www.cnblogs.com/DswCnblog/p/5628195.html
         std::unique_ptr<Environment*> env_ptr{static_cast<Environment**>(data)};
         Environment* env = *env_ptr;
 
