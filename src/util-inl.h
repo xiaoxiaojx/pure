@@ -1,10 +1,10 @@
 #ifndef SRC_UTIL_INL_H_
 #define SRC_UTIL_INL_H_
 
+#include <locale>
 #include "util.h"
 #include "uv.h"
 #include "v8.h"
-#include <locale>
 
 namespace pure {
 
@@ -142,10 +142,14 @@ inline v8::Local<v8::String> OneByteString(v8::Isolate* isolate,
              isolate, data, v8::NewStringType::kNormal, length)
       .ToLocalChecked();
 }
-// Used to be a macro, hence the uppercase name.
+
 template <int N>
-inline v8::Local<v8::String> FIXED_ONE_BYTE_STRING(v8::Isolate* isolate,
-                                                   const char (&data)[N]) {
+inline v8::Local<v8::String> FIXED_ONE_BYTE_STRING(
+    v8::Isolate* isolate,
+    // test-demo/char-str.cc
+    // const char (&data)[N] 巧妙的通过值引用方式拿到原数据,
+    // 通过模版编程自动获取长度 N
+    const char (&data)[N]) {
   return OneByteString(isolate, data, N - 1);
 }
 

@@ -15,6 +15,11 @@ class StringBytes {
   static v8::Maybe<size_t> StorageSize(v8::Isolate* isolate,
                                        v8::Local<v8::Value> val,
                                        enum encoding enc);
+  // Precise byte count, but slightly slower for Base64 and
+  // very much slower for UTF-8
+  static v8::Maybe<size_t> Size(v8::Isolate* isolate,
+                                v8::Local<v8::Value> val,
+                                enum encoding enc);
 };
 
 }  // namespace pure

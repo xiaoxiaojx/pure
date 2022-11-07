@@ -35,7 +35,8 @@ int main(int argc, char* argv[]) {
   v8::Isolate* isolate = v8::Isolate::New(create_params);
   {
     // v8::Isolate::DisallowJavascriptExecutionScope no_js(
-    //   isolate, v8::Isolate::DisallowJavascriptExecutionScope::CRASH_ON_FAILURE);
+    //   isolate,
+    //   v8::Isolate::DisallowJavascriptExecutionScope::CRASH_ON_FAILURE);
     // v8::Isolate::AllowJavascriptExecutionScope yes_js(isolate);
     v8::Isolate::Scope isolate_scope(isolate);
 
@@ -52,6 +53,15 @@ int main(int argc, char* argv[]) {
       // Create a string containing the JavaScript source code.
       v8::Local<v8::String> source =
           v8::String::NewFromUtf8Literal(isolate, "'Hello' + ', World!'");
+
+      // > Buffer.byteLength('🦁')
+      // 4
+      // > "🦁".length
+      // 2
+      // v8::Local<v8::String> source_test1 =
+      //     v8::String::NewFromUtf8Literal(isolate, "🦁");
+
+      // printf("🦁.length %i", source_test1->Length());
 
       // Compile the source code.
       v8::Local<v8::Script> script =

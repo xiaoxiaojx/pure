@@ -69,4 +69,42 @@ Maybe<size_t> StringBytes::StorageSize(Isolate* isolate,
   return Just(data_size);
 }
 
+Maybe<size_t> StringBytes::Size(Isolate* isolate,
+                                Local<Value> val,
+                                enum encoding encoding) {
+  HandleScope scope(isolate);
+
+  // if (Buffer::HasInstance(val) && (encoding == BUFFER || encoding == LATIN1))
+  //   return Just(Buffer::Length(val));
+
+  Local<String> str;
+  if (!val->ToString(isolate->GetCurrentContext()).ToLocal(&str))
+    return Nothing<size_t>();
+
+  switch (encoding) {
+    case ASCII:
+    case LATIN1:
+      return Just<size_t>(str->Length());
+
+    case BUFFER:
+    case UTF8:
+      return Just<size_t>(str->Utf8Length(isolate));
+
+    case UCS2:
+      return Just(str->Length() * sizeof(uint16_t));
+
+    case BASE64URL:
+      // Fall through
+    case BASE64: {
+      String::Value value(isolate, str);
+      return Just(base64_decoded_size(*value, value.length()));
+    }
+
+    case HEX:
+      return Just<size_t>(str->Length() / 2);
+  }
+
+  UNREACHABLE();
+}
+
 }  // namespace pure
