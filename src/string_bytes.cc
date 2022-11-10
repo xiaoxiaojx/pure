@@ -22,6 +22,7 @@ using v8::Value;
 
 // StorageSize 仅估算出最大可能的大小, 比如 UTF8 编码字节不会超过 length*3
 // Base64 约 1-2倍
+// https://github.com/xiaoxiaojx/blog/issues/47
 Maybe<size_t> StringBytes::StorageSize(Isolate* isolate,
                                        Local<Value> val,
                                        enum encoding encoding) {

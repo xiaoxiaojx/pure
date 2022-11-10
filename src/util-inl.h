@@ -92,6 +92,7 @@ inline T* Calloc(size_t n) {
   return ret;
 }
 
+// Inner Outer::*field 使用见 test-demo/pointer-to-member.cc
 template <typename Inner, typename Outer>
 constexpr uintptr_t OffsetOf(Inner Outer::*field) {
   return reinterpret_cast<uintptr_t>(&(static_cast<Outer*>(nullptr)->*field));
