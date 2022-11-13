@@ -29,6 +29,7 @@
 
 #include "pure_binding.h"
 #include "pure_main_instance.h"
+#include "pure_options-inl.h"
 
 namespace pure {
 using v8::EscapableHandleScope;
@@ -133,6 +134,84 @@ void ResetStdio() {
 #endif  // __POSIX__
 }
 
+int ProcessGlobalArgs(std::vector<std::string>* args,
+                      std::vector<std::string>* exec_args,
+                      std::vector<std::string>* errors,
+                      OptionEnvvarSettings settings) {
+  // Parse a few arguments which are specific to Node.
+  std::vector<std::string> v8_args;
+
+  Mutex::ScopedLock lock(per_process::cli_options_mutex);
+  options_parser::Parse(args,
+                        exec_args,
+                        &v8_args,
+                        per_process::cli_options.get(),
+                        settings,
+                        errors);
+
+  if (!errors->empty()) return 9;
+
+  std::string revert_error;
+  for (const std::string& cve : per_process::cli_options->security_reverts) {
+    Revert(cve.c_str(), &revert_error);
+    if (!revert_error.empty()) {
+      errors->emplace_back(std::move(revert_error));
+      return 12;
+    }
+  }
+
+  if (per_process::cli_options->disable_proto != "delete" &&
+      per_process::cli_options->disable_proto != "throw" &&
+      per_process::cli_options->disable_proto != "") {
+    errors->emplace_back("invalid mode passed to --disable-proto");
+    return 12;
+  }
+
+  // TODO(aduh95): remove this when the harmony-import-assertions flag
+  // is removed in V8.
+  if (std::find(v8_args.begin(),
+                v8_args.end(),
+                "--no-harmony-import-assertions") == v8_args.end()) {
+    v8_args.emplace_back("--harmony-import-assertions");
+  }
+
+  auto env_opts = per_process::cli_options->per_isolate->per_env;
+  if (std::find(v8_args.begin(),
+                v8_args.end(),
+                "--abort-on-uncaught-exception") != v8_args.end() ||
+      std::find(v8_args.begin(),
+                v8_args.end(),
+                "--abort_on_uncaught_exception") != v8_args.end()) {
+    env_opts->abort_on_uncaught_exception = true;
+  }
+
+#ifdef __POSIX__
+  // Block SIGPROF signals when sleeping in epoll_wait/kevent/etc.  Avoids the
+  // performance penalty of frequent EINTR wakeups when the profiler is running.
+  // Only do this for v8.log profiling, as it breaks v8::CpuProfiler users.
+  if (std::find(v8_args.begin(), v8_args.end(), "--prof") != v8_args.end()) {
+    uv_loop_configure(uv_default_loop(), UV_LOOP_BLOCK_SIGNAL, SIGPROF);
+  }
+#endif
+
+  std::vector<char*> v8_args_as_char_ptr(v8_args.size());
+  if (v8_args.size() > 0) {
+    for (size_t i = 0; i < v8_args.size(); ++i)
+      v8_args_as_char_ptr[i] = &v8_args[i][0];
+    int argc = v8_args.size();
+    V8::SetFlagsFromCommandLine(&argc, &v8_args_as_char_ptr[0], true);
+    v8_args_as_char_ptr.resize(argc);
+  }
+
+  // Anything that's still in v8_argv is not a V8 or a node option.
+  for (size_t i = 1; i < v8_args_as_char_ptr.size(); i++)
+    errors->push_back("bad option: " + std::string(v8_args_as_char_ptr[i]));
+
+  if (v8_args_as_char_ptr.size() > 1) return 9;
+
+  return 0;
+}
+
 int InitializePureWithArgs(std::vector<std::string>* argv,
                            std::vector<std::string>* exec_argv,
                            std::vector<std::string>* errors,
@@ -159,6 +238,7 @@ int InitializePureWithArgs(std::vector<std::string>* argv,
   if (!(flags & ProcessFlags::kDisableNodeOptionsEnv)) {
     std::string pure_options;
 
+    // PURE_OPTIONS='--require "./my path/file.js"'
     if (credentials::SafeGetenv("PURE_OPTIONS", &pure_options)) {
       std::vector<std::string> env_argv =
           ParseNodeOptionsEnvVar(pure_options, errors);
@@ -167,6 +247,10 @@ int InitializePureWithArgs(std::vector<std::string>* argv,
 
       // [0] is expected to be the program name, fill it in from the real argv.
       env_argv.insert(env_argv.begin(), argv->at(0));
+
+      const int exit_code =
+          ProcessGlobalArgs(&env_argv, nullptr, errors, kAllowedInEnvironment);
+      if (exit_code != 0) return exit_code;
     }
   }
   // Set the process.title immediately after processing argv if --title is set.

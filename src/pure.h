@@ -95,6 +95,16 @@ PURE_EXTERN void DefaultProcessExitHandler(Environment* env, int exit_code);
 
 extern "C" PURE_EXTERN void pure_module_register(void* mod);
 
+enum OptionEnvvarSettings {
+  kAllowedInEnvironment,
+  kDisallowedInEnvironment
+};
+
+PURE_EXTERN int ProcessGlobalArgs(std::vector<std::string>* args,
+                      std::vector<std::string>* exec_args,
+                      std::vector<std::string>* errors,
+                      OptionEnvvarSettings settings);
+
 typedef void (*addon_register_func)(v8::Local<v8::Object> exports,
                                     v8::Local<v8::Value> module,
                                     void* priv);
