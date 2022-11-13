@@ -32,6 +32,13 @@ bool linux_at_secure = false;
 namespace credentials {
 
 #if defined(__linux__)
+// capability https://www.cnblogs.com/sparkdev/p/11417781.html
+// 从内核 2.2 开始，Linux 将传统上与超级用户 root
+// 关联的特权划分为不同的单元，称为 capabilites。Capabilites 作为线程(Linux
+// 并不真正区分进程和线程)的属性存在，每个单元可以独立启用和禁用。如此一来，权限检查的过程就变成了：在执行特权操作时，如果进程的有效身份不是
+// root，就去检查是否具有该特权操作所对应的
+// capabilites，并以此决定是否可以进行该特权操作。比如要向进程发送信号(kill())，就得具有
+// capability CAP_KILL；如果设置系统时间，就得具有 capability CAP_SYS_TIME。
 // Returns true if the current process only has the passed-in capability.
 bool HasOnly(int capability) {
   DCHECK(cap_valid(capability));
@@ -62,6 +69,18 @@ bool SafeGetenv(const char* key, std::string* text, Environment* env) {
   if ((!HasOnly(CAP_NET_BIND_SERVICE) && per_process::linux_at_secure) ||
       getuid() != geteuid() || getgid() != getegid())
 #else
+  // geteuid()：返回有效用户的ID。
+  // getuid（）：返回实际用户的ID。
+  // 有效用户ID（EUID）是你最初执行程序时所用的ID
+  //   表示该ID是程序的所有者
+  //   真实用户ID（UID）是程序执行过程中采用的ID
+  //   该ID表明当前运行位置程序的执行者
+  //   举个例子
+  //   程序myprogram的所有者为501/anna
+  //   以501运行该程序此时UID和EUID都是501
+  //   但是由于中间要访问某些系统资源
+  //   需要使用root身份
+  //   此时UID为0而EUID仍是501
   if (per_process::linux_at_secure || getuid() != geteuid() ||
       getgid() != getegid())
 #endif

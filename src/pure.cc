@@ -80,12 +80,23 @@ void ResetStdio() {
 
     // 如果没有被修改, 则继续运行后面的逻辑
     int flags;
+    // fcntl https://www.cnblogs.com/xuyh/p/3273082.html
+    // fcntl是计算机中的一种函数，通过fcntl可以改变已打开的文件性质。fcntl针对描述符提供控制。参数fd是被参数cmd操作的描述符。针对cmd的值，fcntl能够接受第三个参数int
+    // arg。
+    // F_GETFL 获得／设置文件状态标记(cmd=F_GETFL或F_SETFL).
     do flags = fcntl(fd, F_GETFL);
     while (flags == -1 && errno == EINTR);  // NOLINT
     CHECK_NE(flags, -1);
 
     // 重新设置为 O_NONBLOCK 如果被修改了
     if (O_NONBLOCK & (flags ^ s.flags)) {
+      // ^ 异或运算 https://www.ruanyifeng.com/blog/2021/01/_xor.html
+      // 1. 一个值与自身的运算，总是为 false
+      // 2. 一个值与 0 的运算，总是等于其本身
+      // 3. 可交换性  x ^ y = y ^ x
+      // 4. 结合性 x ^ (y ^ z) = (x ^ y) ^ z
+      // O_NONBLOCK
+      // 所产生的结果是使I/O变成非阻塞模式(non-blocking)，在读取不到数据或是写入缓冲区已满会马上return，而不会阻塞等待。
       flags &= ~O_NONBLOCK;
       flags |= s.flags & O_NONBLOCK;
 
@@ -103,9 +114,13 @@ void ResetStdio() {
       // We might be a background job that doesn't own the TTY so block SIGTTOU
       // before making the tcsetattr() call, otherwise that signal suspends us.
       sigemptyset(&sa);
+      // unix环境下，当一个进程以后台形式启动，但尝试去读写控制台终端时，将会触发
+      // SIGTTIN（读） 和
+      // SIGTTOU（写）信号量，接着，进程将会暂停（linux默认），read/write将会返回错误。
       sigaddset(&sa, SIGTTOU);
 
       CHECK_EQ(0, pthread_sigmask(SIG_BLOCK, &sa, nullptr));
+      // TCSANOW — 立即做出改变。
       do err = tcsetattr(fd, TCSANOW, &s.termios);
       while (err == -1 && errno == EINTR);  // NOLINT
       CHECK_EQ(0, pthread_sigmask(SIG_UNBLOCK, &sa, nullptr));
@@ -125,10 +140,10 @@ int InitializePureWithArgs(std::vector<std::string>* argv,
   // Make sure InitializePureWithArgs() is called only once.
   CHECK(!init_called.exchange(true));
 
-  // Initialize pure_start_time to get relative uptime.
+  // 记录启动时间
   per_process::pure_start_time = uv_hrtime();
 
-  // Register built-in modules
+  // 注册 built-in modules, 比如 addon_console.cc
   binding::RegisterBuiltinModules();
 
   // Make inherited handles noninheritable.

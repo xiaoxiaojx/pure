@@ -1,4 +1,4 @@
-#include <assert.h>
+#include "assert.h"
 
 #include "pure_main_instance.h"
 #include "pure_mutex.h"
@@ -24,14 +24,49 @@ using v8::String;
 
 using v8::Function;
 using v8::Isolate;
+using v8::Just;
 using v8::Local;
+using v8::Nothing;
 using v8::Number;
 using v8::Object;
 using v8::Promise;
 using v8::PromiseRejectEvent;
 using v8::PromiseRejectMessage;
+using v8::SealHandleScope;
 
-// Local<Context> NewContext(Isolate *);
+// 1. 耗尽所有 event_loop 中的任务
+// 2. TODO 调用 EmitProcessBeforeExit、EmitProcessExit 通知 js,
+// 调用后还有任务回到步骤 1
+// 3. TODO 确认其他线程已经结束
+Maybe<int> SpinEventLoop(Environment* env) {
+  CHECK_NOT_NULL(env);
+
+  Isolate* isolate = env->isolate();
+  HandleScope handle_scope(isolate);
+  Context::Scope context_scope(env->context());
+  SealHandleScope seal(isolate);
+
+  if (env->is_stopping()) return Nothing<int>();
+
+  {
+    bool more;
+    do {
+      if (env->is_stopping()) break;
+      uv_run(env->event_loop(), UV_RUN_DEFAULT);
+      if (env->is_stopping()) break;
+
+      more = uv_loop_alive(env->event_loop());
+      if (more && !env->is_stopping()) continue;
+
+      // if (EmitProcessBeforeExit(env).IsNothing()) break;
+      more = uv_loop_alive(env->event_loop());
+    } while (more == true && !env->is_stopping());
+  }
+  if (env->is_stopping()) return Nothing<int>();
+
+  // return EmitProcessExit(env);
+  return Just(0);
+}
 
 static std::atomic<uint64_t> next_thread_id{0};
 
@@ -198,7 +233,7 @@ void PureMainInstance::Run(int* exit_code, Environment* env) {
   if (*exit_code == 0) {
     LoadEnvironment(env, StartExecutionCallback{});
 
-    // *exit_code = SpinEventLoop(env).FromMaybe(1);
+    *exit_code = SpinEventLoop(env).FromMaybe(1);
   }
 
   ResetStdio();

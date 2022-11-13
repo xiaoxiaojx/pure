@@ -294,6 +294,14 @@ class AliasedBufferBase {
   const AliasedBufferIndex* index_ = nullptr;
 };
 
+// typedef https://www.cnblogs.com/charley_yang/archive/2010/12/15/1907384.html
+// 通常讲，typedef要比#define要好，特别是在有指针的场合。请看例子：
+// typedef char *pStr1;
+// #define pStr2 char *;
+// pStr1 s1, s2;
+// pStr2 s3, s4;
+// 在上述的变量定义中，s1、s2、s3都被定义为char
+// *，而s4则定义成了char，不是我们所预期的指针变量，根本原因就在于#define只是简单的字符串替换而typedef则是为一个类型起新名字。
 typedef AliasedBufferBase<int32_t, v8::Int32Array> AliasedInt32Array;
 typedef AliasedBufferBase<uint8_t, v8::Uint8Array> AliasedUint8Array;
 typedef AliasedBufferBase<uint32_t, v8::Uint32Array> AliasedUint32Array;

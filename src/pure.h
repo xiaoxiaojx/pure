@@ -81,6 +81,8 @@ PURE_EXTERN int Start(int argc, char* argv[]);
 
 PURE_EXTERN int Stop(Environment* env);
 
+PURE_EXTERN v8::Maybe<int> SpinEventLoop(Environment* env);
+
 PURE_EXTERN int InitializePureWithArgs(std::vector<std::string>* argv,
                                        std::vector<std::string>* exec_argv,
                                        std::vector<std::string>* errors,
