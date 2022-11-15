@@ -18,9 +18,9 @@
 
 namespace pure {
 
-template <typename R, typename... Args>
-template <typename Fn>
-std::unique_ptr<typename CallbackQueue<R, Args...>::Callback>
+template <typename R, typename... Args> // 示例化 CallbackQueue 时传入
+template <typename Fn> // 调用 CreateCallback 时函数传入
+std::unique_ptr<typename CallbackQueue<R, Args...>::Callback> // 声明 CreateCallback 的返回值类型
 CallbackQueue<R, Args...>::CreateCallback(Fn&& fn, CallbackFlags::Flags flags) {
   return std::make_unique<CallbackImpl<Fn>>(std::move(fn), flags);
 }
